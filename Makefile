@@ -37,11 +37,9 @@ install: all install-scripts install-cursor ## Build + copy to destinations
 install-scripts: scripts
 	install -d $(BINDIR)
 	install -m 755 scripts/gh-note.sh $(BINDIR)/
-	for f in $(SCRIPTS_GEN); do install -m 755 "$$f" $(BINDIR)/; done
 
 install-cursor: cursor
 	install -d $(RULESDIR)
-	for f in $(RULES_GEN); do install -m 644 "$$f" $(RULESDIR)/; done
 
 test: ## Run bats tests (requires built scripts)
 	bats tests/
