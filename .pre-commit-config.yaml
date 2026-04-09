@@ -1,0 +1,17 @@
+repos:
+  - repo: local
+    hooks:
+      - id: shellcheck
+        name: shellcheck
+        language: system
+        entry: shellcheck
+        types: [shell]
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.21.0
+    hooks:
+      - id: gitleaks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.4.0
+    hooks:
+      - id: end-of-file-fixer
+      - id: trailing-whitespace

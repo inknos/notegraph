@@ -1,0 +1,28 @@
+---
+description: Append a journal entry summarizing work done in this session
+alwaysApply: true
+---
+
+# Work Journal
+
+The user keeps a work journal at `~/Documents/Logseq/Work/pages/workjournal.md`. Append an entry at the end of each session or when the user asks.
+
+## Entry format
+
+```markdown
+## YYYY-MM-DD
+
+- Reviewed PR [[github.com/org/repo/pull/123]] — approved with minor comments
+- Continued work on [[github.com/org/repo/issues/456]], added analysis in [[github.com/org/repo/issues/456/cursor]]
+- Updated comment on [[github.com/org/repo/pull/789]] requesting API change
+- Triaged incoming items in worktodo, moved RUN-1234 to Focus
+- Worked on [[{{JIRA_ENDPOINT}}/RUN-1234]] — opened draft PR [[github.com/org/repo/pull/999]]
+```
+
+## Rules
+
+1. **Always link.** Every mention of a GitHub issue, PR, or Jira card must be a `[[wikilink]]` using the same format as `worktodo.md` (e.g. `github.com/org/repo/pull/123`, `{{JIRA_ENDPOINT}}/KEY-123`). Link to cursor notes as `[[.../cursor]]` when relevant.
+2. **Be brief.** One line per activity. State *what* happened (reviewed, commented, opened, merged, triaged, investigated) and the outcome or next step.
+3. **Append, never overwrite.** If today's date heading already exists, append bullets under it. Otherwise create a new `## YYYY-MM-DD` heading at the end of the file.
+4. **Create if missing.** If `workjournal.md` doesn't exist, create it with a `# Work Journal` heading before the first entry.
+5. **Derive from context.** Build the entry from what you did in the session: PRs reviewed, issues investigated, code written, comments posted, todo items triaged. Don't ask the user to dictate it — infer from the conversation history.

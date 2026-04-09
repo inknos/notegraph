@@ -1,0 +1,58 @@
+---
+description: Auto-create and use GitHub issue/PR note files
+alwaysApply: true
+---
+
+# GitHub Issue/PR Notes
+
+When the user references a GitHub issue or PR URL, look up or create structured note files, then use them.
+
+## Trigger
+
+Any GitHub URL matching `https://github.com/{org}/{repo}/{issues|pull}/{number}`.
+
+## Workflow
+
+1. **Locate files.** Run `~/Documents/personal_projects/notegraph/scripts/gh-note.sh --check <url>` to get a JSON object with the paths and existence status of all three files (`md`, `note`, `cursor`).
+
+2. **Create if missing.** If any file has `"exists": false`, run `~/Documents/personal_projects/notegraph/scripts/gh-note.sh <url>` (no `--check`) to fetch from GitHub and create the missing files.
+
+3. **Read the summary.** Read the `md` file (`N.md`). It contains the title, description, raw comments, and a Key Discussion Points section. Use this as your primary context about the issue/PR.
+
+4. **Read the user's notes (read-only).** Read the `note` file (`N-note.md`). These are the user's personal notes, TODOs, and related links. **Never modify this file** -- it belongs to the user.
+
+5. **Write your analysis to the cursor file.** The `cursor` file is your workspace. Replace the YAML metadata with a markdown file containing your analysis:
+   - Summary of the issue/PR and key discussion points
+   - Actionable TODOs and next steps
+   - Technical notes, code pointers, and suggestions
+   - Anything useful for the user to act on
+
+   Keep the file concise and actionable. Update it every time you work on this issue/PR.
+
+## Script reference
+
+`~/Documents/personal_projects/notegraph/scripts/gh-note.sh [--check] [-d <dir>] <github-url>`
+
+| Flag | Effect |
+|------|--------|
+| (none) | Fetch from GitHub and create missing files |
+| `--check` | Print JSON with file paths and existence, no network calls |
+| `-d <dir>` | Override target directory (default: `~/Documents/Logseq/Work/pages`) |
+
+The `--check` output looks like:
+
+```json
+{
+  "md":     { "path": "/path/to/N.md",          "exists": true  },
+  "note":   { "path": "/path/to/N-note.md",     "exists": true  },
+  "cursor": { "path": "/path/to/N-cursor.yaml", "exists": false }
+}
+```
+
+## File purposes
+
+| File | Owner | Purpose |
+|------|-------|---------|
+| `N.md` | Script | Auto-populated summary, description, and raw comments from GitHub |
+| `N-note.md` | User | User's personal working notes -- **read-only for the agent** |
+| `N-cursor.yaml` | Agent | Agent's analysis, TODOs, and notes -- **agent writes here** |
