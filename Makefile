@@ -36,13 +36,15 @@ install: all install-scripts install-cursor ## Build + copy to destinations
 
 install-scripts: scripts
 	install -d $(BINDIR)
-	install -m 755 scripts/gh-note.sh $(BINDIR)/
+	install -m 755 scripts/gh-note.sh $(BUILDDIR)/scripts/* -t $(BINDIR)
 
 install-cursor: cursor
-	install -d $(RULESDIR)
+	install -d $(RULESDIR) .cursor/rules
+	install -m 644 $(BUILDDIR)/cursor/* -t $(RULESDIR)
+	install -m 644 $(BUILDDIR)/cursor/* -t .cursor/rules
 
 test: ## Run bats tests (requires built scripts)
 	bats tests/
 
-clean: ## Remove build directory
-	rm -rf $(BUILDDIR)
+clean: ## Remove build directory and workspace rules
+	rm -rf $(BUILDDIR) .cursor/rules/*.mdc
