@@ -1,12 +1,13 @@
 JIRA_ENDPOINT ?=
 BINDIR        ?= $(HOME)/.local/bin
 RULESDIR      ?= $(HOME)/.cursor/rules
+SCRIPT_DIR    ?= $(CURDIR)/scripts
 
 SCRIPT_TEMPLATES := scripts/jira-note.sh.in scripts/todo-page.sh.in
-RULE_TEMPLATES   := .cursor/rules/jira-notes.mdc.in .cursor/rules/journal.mdc.in .cursor/rules/todo.mdc.in
+RULE_TEMPLATES   := $(wildcard cursor/*.mdc.in)
 
 SCRIPTS_GEN := $(SCRIPT_TEMPLATES:.sh.in=.sh)
-RULES_GEN   := $(RULE_TEMPLATES:.mdc.in=.mdc)
+RULES_GEN   := $(patsubst cursor/%.mdc.in,.cursor/rules/%.mdc,$(RULE_TEMPLATES))
 
 .PHONY: all scripts cursor install install-scripts install-cursor check-vars clean test
 
@@ -19,13 +20,16 @@ check-vars:
 scripts: check-vars $(SCRIPTS_GEN) ## Build scripts from .sh.in
 
 scripts/%.sh: scripts/%.sh.in
-	sed 's|{{JIRA_ENDPOINT}}|$(JIRA_ENDPOINT)|g' $< > $@
+	sed -e 's|{{JIRA_ENDPOINT}}|$(JIRA_ENDPOINT)|g' -e 's|{{SCRIPT_DIR}}|$(SCRIPT_DIR)|g' $< > $@
 	chmod +x $@
 
 cursor: check-vars $(RULES_GEN) ## Build cursor rules from .mdc.in
 
-.cursor/rules/%.mdc: .cursor/rules/%.mdc.in
-	sed 's|{{JIRA_ENDPOINT}}|$(JIRA_ENDPOINT)|g' $< > $@
+.cursor/rules/%.mdc: cursor/%.mdc.in | .cursor/rules
+	sed -e 's|{{JIRA_ENDPOINT}}|$(JIRA_ENDPOINT)|g' -e 's|{{SCRIPT_DIR}}|$(SCRIPT_DIR)|g' $< > $@
+
+.cursor/rules:
+	mkdir -p $@
 
 install: all install-scripts install-cursor ## Build + copy to destinations
 
@@ -37,10 +41,7 @@ install-scripts: scripts
 
 install-cursor: cursor
 	install -d $(RULESDIR)
-	install -m 644 .cursor/rules/gh-notes.mdc    $(RULESDIR)/
-	install -m 644 .cursor/rules/jira-notes.mdc  $(RULESDIR)/
-	install -m 644 .cursor/rules/journal.mdc     $(RULESDIR)/
-	install -m 644 .cursor/rules/todo.mdc        $(RULESDIR)/
+	for f in $(RULES_GEN); do install -m 644 "$$f" $(RULESDIR)/; done
 
 test: ## Run bats tests (requires built scripts)
 	bats tests/

@@ -1,0 +1,68 @@
+---
+description: Keep today's Logseq journal page updated with a running log of agent activity
+alwaysApply: true
+---
+
+# Work Journal
+
+The agent maintains a running log of its activity on today's Logseq journal page, using the `user-mcp-logseq` MCP server.
+
+## Discovering today's page
+
+Logseq journal pages are named by date. The default title format is `MMM do, yyyy` (e.g. `Apr 9th, 2026`). To find today's page:
+
+1. Call `get_page_content` with today's date formatted as the page name (e.g. `Apr 9th, 2026`).
+2. If the page doesn't exist, call `create_page` with that title.
+
+Do NOT hardcode file paths. Always go through the MCP.
+
+## When to write
+
+**After every response that changes files or state.** At the end of any turn where you edited files, ran commands, posted comments, updated notes, or performed any non-trivial action, update the journal. Skip trivial turns that only answer a question or provide information without changing anything.
+
+This means:
+
+- On the first substantive turn, read the journal page (`get_page_content` with `format: "json"` to get block UUIDs) and append a breadcrumb bullet.
+- On subsequent turns, refactor your earlier `Cursor session:` bullets from this session to accurately reflect the current state of work. Use `update_block` with the block UUID to edit in place. Consolidate multiple small steps into a single clear bullet when appropriate.
+- Never edit or remove blocks written by the user or by previous sessions.
+
+## How to read and write
+
+| Action | MCP tool | Notes |
+|--------|----------|-------|
+| Read journal | `get_page_content` with `format: "json"` | Returns blocks with UUIDs so you can edit them later |
+| Append new entry | `update_page` with `mode: "append"` | Adds blocks after existing content |
+| Edit your own entry | `update_block` with the block's UUID | Only for `Cursor session:` blocks you wrote this session |
+| Create journal page | `create_page` with today's date as title | Only if the page doesn't exist yet |
+
+## Entry format
+
+Each entry is a top-level block prefixed with `Cursor session:` so the user can distinguish agent-written entries from their own.
+
+```markdown
+- Cursor session: reviewed PR [[github.com/org/repo/pull/123]] — approved with minor comments
+- Cursor session: updated notegraph rules — moved .mdc.in templates to cursor/ dir, templatized script paths
+- Cursor session: investigated flaky test in [[{{JIRA_ENDPOINT}}/RUN-1234]], root cause is race condition in setup
+```
+
+## What to log
+
+Log any action that changes files or state:
+
+- PR/issue reviews, comments, approvals
+- Code changes, refactors, bug fixes
+- Config or rule file edits
+- Script or build system changes
+- Note page updates (cursor files, worktodo, etc.)
+- Triage or planning activity
+- Debugging or investigation with findings
+
+Do NOT log: answering informational questions, reading files without acting on them, or trivial clarifications.
+
+## Rules
+
+1. **Always link.** Every mention of a GitHub issue, PR, or Jira card must be a `[[wikilink]]` (e.g. `[[github.com/org/repo/pull/123]]`, `[[{{JIRA_ENDPOINT}}/KEY-123]]`). Link to cursor notes as `[[.../cursor]]` when relevant.
+2. **Be brief.** One line per activity. State *what* happened and the outcome or next step.
+3. **Refactor your own entries, never touch others.** You may edit or consolidate `Cursor session:` blocks you wrote in this session to keep the journal clean and accurate. Never edit or remove blocks written by the user or by previous sessions.
+4. **Derive from context.** Build the entry from what you actually did. Don't ask the user to dictate it.
+5. **Read before writing.** Always read the journal page first (with `format: "json"`) to get block UUIDs and avoid duplicates.

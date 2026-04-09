@@ -13,9 +13,9 @@ Any GitHub URL matching `https://github.com/{org}/{repo}/{issues|pull}/{number}`
 
 ## Workflow
 
-1. **Locate files.** Run `~/Documents/personal_projects/notegraph/scripts/gh-note.sh --check <url>` to get a JSON object with the paths and existence status of all three files (`md`, `note`, `cursor`).
+1. **Locate files.** Run `{{SCRIPT_DIR}}/gh-note.sh --check <url>` to get a JSON object with the paths and existence status of all three files (`md`, `note`, `cursor`).
 
-2. **Create if missing.** If any file has `"exists": false`, run `~/Documents/personal_projects/notegraph/scripts/gh-note.sh <url>` (no `--check`) to fetch from GitHub and create the missing files.
+2. **Create if missing.** If any file has `"exists": false`, run `{{SCRIPT_DIR}}/gh-note.sh <url>` (no `--check`) to fetch from GitHub and create the missing files.
 
 3. **Read the summary.** Read the `md` file (`N.md`). It contains the title, description, raw comments, and a Key Discussion Points section. Use this as your primary context about the issue/PR.
 
@@ -31,7 +31,7 @@ Any GitHub URL matching `https://github.com/{org}/{repo}/{issues|pull}/{number}`
 
 ## Script reference
 
-`~/Documents/personal_projects/notegraph/scripts/gh-note.sh [--check] [-d <dir>] <github-url>`
+`{{SCRIPT_DIR}}/gh-note.sh [--check] [-d <dir>] <github-url>`
 
 | Flag | Effect |
 |------|--------|

@@ -1,0 +1,36 @@
+---
+description: Track actionable improvements and TODOs discovered during Cursor sessions
+alwaysApply: true
+---
+
+# Cursor TODO Tracker
+
+The agent maintains a running list of actionable improvements, bugs, and follow-ups discovered during reviews and investigations.
+
+- **Path**: `~/Documents/Logseq/Work/pages/cursortodo.md`
+- **Format**: Logseq outliner bullets (`- `), grouped by repo under bold headings.
+
+## When to write
+
+1. **After a review or investigation.** If you found bugs, improvement ideas, or follow-up actions in a PR/issue, add them here.
+2. **After completing a TODO.** Mark it done with `~~strikethrough~~` — don't delete it.
+3. **Before starting work.** Read `cursortodo.md` to check for outstanding items related to the current repo or PR.
+
+## Entry format
+
+Items are grouped under a repo heading. Each item links to the PR/issue and the cursor notes file.
+
+```markdown
+- **org/repo**
+  - [[github.com/org/repo/pull/123]] brief description of improvement — details in [[github.com/org/repo/pull/123/cursor]]
+  - ~~[[github.com/org/repo/issue/456]] fixed: description~~ (done 2026-04-09)
+```
+
+## Rules
+
+1. **Always link.** Every item must include a `[[wikilink]]` to the PR/issue and optionally to the cursor notes file.
+2. **Group by repo.** Use `- **org/repo**` as a top-level bullet. Add items as indented children. If the repo heading already exists, add under it.
+3. **Be specific.** State what needs to happen, not just what was observed. "Refactor X to handle Y" is better than "X has a problem".
+4. **Mark done, don't delete.** Wrap completed items in `~~strikethrough~~` and append `(done YYYY-MM-DD)`.
+5. **Read before writing.** Always read `cursortodo.md` first to avoid duplicates and to check if the item already exists.
+6. **Create if missing.** If `cursortodo.md` doesn't exist, create it with no heading — just start with the repo bullet.
