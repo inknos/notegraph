@@ -29,7 +29,7 @@ All scripts and rules are generated from `.in` templates via `make`. The build s
 | Variable | Purpose | Example value |
 |----------|---------|---------------|
 | `{{JIRA_ENDPOINT}}` | Jira hostname for URLs and wikilinks | `redhat.atlassian.net` |
-| `{{SCRIPT_DIR}}` | Absolute path to scripts directory | `/home/user/notegraph/scripts` |
+| `{{SCRIPT_DIR}}` | Absolute path to installed scripts directory | `~/.local/bin` |
 
 ## Quick start
 

@@ -1,0 +1,20 @@
+# notegraph configuration
+# Default location: ~/.config/notegraph/config.toml
+# Override with: notegraph --config /path/to/config.toml
+
+type = "logseq"  # output format: "logseq" or "cosma"
+
+[jira]
+endpoint = "redhat.atlassian.net"
+email = ""
+token = ""   # prefer env JIRA_TOKEN
+repo = "~/Documents/personal_projects/notegraph/jira"
+
+[github]
+token = ""   # prefer env GITHUB_TOKEN
+
+[logseq]
+graph_dir = "~/Documents/Logseq/Work/pages"
+
+[cosma]
+data_dir = ""

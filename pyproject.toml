@@ -1,0 +1,117 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "notegraph"
+version = "0.1.0"
+description = "Note graph generator for GitHub and Jira issues"
+requires-python = ">=3.13"
+dependencies = [
+    "cyclopts",
+    "pydantic",
+    "requests",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "ruff",
+]
+
+[project.scripts]
+notegraph = "notegraph.cli:main"
+
+# ---------------------------------------------------------------------------
+# Ruff
+# ---------------------------------------------------------------------------
+[tool.ruff]
+target-version = "py313"
+line-length = 99
+
+[tool.ruff.lint]
+select = [
+    # core
+    "F",      # pyflakes
+    "E", "W", # pycodestyle
+    "I",      # isort
+    "N",      # pep8-naming
+    "UP",     # pyupgrade
+
+    # bugs & correctness
+    "B",      # flake8-bugbear
+    "BLE",    # flake8-blind-except
+    "S",      # flake8-bandit
+    "ISC",    # flake8-implicit-str-concat
+    "T10",    # flake8-debugger
+    "INP",    # flake8-no-pep420
+    "PGH",    # pygrep-hooks
+    "PL",     # pylint subset
+    "TRY",    # tryceratops
+    "FBT",    # flake8-boolean-trap
+
+    # code quality
+    "A",      # flake8-builtins
+    "C4",     # flake8-comprehensions
+    "C90",    # mccabe
+    "SIM",    # flake8-simplify
+    "RET",    # flake8-return
+    "RSE",    # flake8-raise
+    "PIE",    # flake8-pie
+    "PERF",   # perflint
+    "FURB",   # refurb
+    "FLY",    # flynt
+    "ERA",    # eradicate
+
+    # imports & types
+    "TID",    # flake8-tidy-imports
+    "TC",     # flake8-type-checking
+    "ICN",    # flake8-import-conventions
+
+    # hygiene
+    "EM",     # flake8-errmsg
+    "T20",    # flake8-print
+    "ARG",    # flake8-unused-arguments
+    "PTH",    # flake8-use-pathlib
+    "SLF",    # flake8-self
+    "EXE",    # flake8-executable
+    "DTZ",    # flake8-datetimez
+    "LOG",    # flake8-logging
+    "G",      # flake8-logging-format
+
+    # style-strict
+    "ANN",    # flake8-annotations
+    "D",      # pydocstyle
+    "Q",      # flake8-quotes
+    "FIX",    # flake8-fixme
+    "TD",     # flake8-todos
+
+    # tests
+    "PT",     # flake8-pytest-style
+
+    # ruff
+    "RUF",    # ruff-specific
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = [
+    "S101",    # assert in tests is fine
+    "S105",    # hardcoded passwords in test assertions are fine
+    "S106",    # hardcoded passwords in test function args are fine
+    "ARG",     # unused fixture args are normal
+    "FBT",     # booleans in test params are fine
+    "PLR2004", # magic values in assertions are fine
+    "D",       # no docstrings required in tests
+    "ANN",     # no type annotations required in tests
+    "ERA001",  # section-separator comments look like commented code
+    "PT011",   # broad exception types in tests are fine
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+# ---------------------------------------------------------------------------
+# Pytest
+# ---------------------------------------------------------------------------
+[tool.pytest.ini_options]
+testpaths = ["tests"]

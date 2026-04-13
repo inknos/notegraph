@@ -1,7 +1,7 @@
 JIRA_ENDPOINT ?=
 BINDIR        ?= $(HOME)/.local/bin
 RULESDIR      ?= $(HOME)/.cursor/rules
-SCRIPT_DIR    ?= $(CURDIR)/scripts
+SCRIPT_DIR    ?= $(BINDIR)
 BUILDDIR      := build
 
 SCRIPT_TEMPLATES := scripts/gh-note.sh.in scripts/jira-note.sh.in scripts/todo-page.sh.in
@@ -10,7 +10,7 @@ RULE_TEMPLATES   := $(wildcard cursor/*.mdc.in)
 SCRIPTS_GEN := $(patsubst scripts/%.sh.in,$(BUILDDIR)/scripts/%.sh,$(SCRIPT_TEMPLATES))
 RULES_GEN   := $(patsubst cursor/%.mdc.in,$(BUILDDIR)/cursor/%.mdc,$(RULE_TEMPLATES))
 
-.PHONY: all scripts cursor install install-scripts install-cursor check-vars clean test
+.PHONY: all scripts cursor install install-scripts install-cursor install-python check-vars clean test test-python lint fmt
 
 all: check-vars scripts cursor ## Build generated files (default)
 
@@ -43,8 +43,24 @@ install-cursor: cursor
 	install -m 644 $(BUILDDIR)/cursor/* -t $(RULESDIR)
 	install -m 644 $(BUILDDIR)/cursor/* -t .cursor/rules
 
-test: ## Run bats tests (requires built scripts)
-	bats tests/
+install-python: ## Sync Python venv via uv
+	uv sync --all-extras
+
+test: test-bats test-python ## Run all tests
+
+test-bats: ## Run bats tests (requires built scripts)
+	bats tests/*.bats
+
+test-python: ## Run Python tests
+	uv run pytest tests/ -v
+
+lint: ## Run ruff linter and formatter check
+	uv run ruff check notegraph/ tests/
+	uv run ruff format --check notegraph/ tests/
+
+fmt: ## Auto-format with ruff
+	uv run ruff check --fix notegraph/ tests/
+	uv run ruff format notegraph/ tests/
 
 clean: ## Remove build directory and workspace rules
 	rm -rf $(BUILDDIR) .cursor/rules/*.mdc
