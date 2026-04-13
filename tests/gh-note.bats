@@ -60,7 +60,7 @@ teardown() {
   [ "$wikilink_prefix" = "github.com/containers/podman/pull/24126" ]
   [ "$md_path"         = "$TEST_TMPDIR/github.com___containers___podman___pull___24126.md" ]
   [ "$note_path"       = "$TEST_TMPDIR/github.com___containers___podman___pull___24126___note.md" ]
-  [ "$cursor_path"     = "$TEST_TMPDIR/github.com___containers___podman___pull___24126___cursor.yaml" ]
+  [ "$cursor_path"     = "$TEST_TMPDIR/github.com___containers___podman___pull___24126___cursor.md" ]
 }
 
 @test "compute_gh_paths: issue URL paths" {
@@ -69,7 +69,7 @@ teardown() {
 
   [ "$md_path"     = "$TEST_TMPDIR/github.com___org___repo___issues___42.md" ]
   [ "$note_path"   = "$TEST_TMPDIR/github.com___org___repo___issues___42___note.md" ]
-  [ "$cursor_path" = "$TEST_TMPDIR/github.com___org___repo___issues___42___cursor.yaml" ]
+  [ "$cursor_path" = "$TEST_TMPDIR/github.com___org___repo___issues___42___cursor.md" ]
 }
 
 # -----------------------------------------------------------------------

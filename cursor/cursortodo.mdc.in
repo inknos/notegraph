@@ -5,16 +5,24 @@ alwaysApply: true
 
 # Cursor TODO Tracker
 
-The agent maintains a running list of actionable improvements, bugs, and follow-ups discovered during reviews and investigations.
+The agent maintains a running list of actionable improvements, bugs, and follow-ups on the `cursortodo` Logseq page, using the `user-mcp-logseq` MCP server.
 
-- **Path**: `~/Documents/Logseq/Work/pages/cursortodo.md`
-- **Format**: Logseq outliner bullets (`- `), grouped by repo under bold headings.
+## How to read and write
+
+| Action | MCP tool | Notes |
+|--------|----------|-------|
+| Read the page | `get_page_content` with `page_name: "cursortodo"`, `format: "json"` | Returns blocks with UUIDs for editing |
+| Append new items | `update_page` with `page_name: "cursortodo"`, `mode: "append"` | Adds blocks after existing content |
+| Mark item done | `update_block` with the block's UUID | Wrap text in `~~strikethrough~~` and append `(done YYYY-MM-DD)` |
+| Create page | `create_page` with `title: "cursortodo"` | Only if the page doesn't exist yet |
+
+Do NOT hardcode file paths. Always go through the MCP.
 
 ## When to write
 
 1. **After a review or investigation.** If you found bugs, improvement ideas, or follow-up actions in a PR/issue, add them here.
-2. **After completing a TODO.** Mark it done with `~~strikethrough~~` — don't delete it.
-3. **Before starting work.** Read `cursortodo.md` to check for outstanding items related to the current repo or PR.
+2. **After completing a TODO.** Mark it done with `~~strikethrough~~` via `update_block` — don't delete it.
+3. **Before starting work.** Read `cursortodo` to check for outstanding items related to the current repo or PR.
 
 ## Entry format
 
@@ -29,8 +37,7 @@ Items are grouped under a repo heading. Each item links to the PR/issue and the 
 ## Rules
 
 1. **Always link.** Every item must include a `[[wikilink]]` to the PR/issue and optionally to the cursor notes file.
-2. **Group by repo.** Use `- **org/repo**` as a top-level bullet. Add items as indented children. If the repo heading already exists, add under it.
+2. **Group by repo.** Use `- **org/repo**` as a top-level block. Add items as children (use `insert_nested_block` with the repo block's UUID). If the repo heading already exists, add under it.
 3. **Be specific.** State what needs to happen, not just what was observed. "Refactor X to handle Y" is better than "X has a problem".
-4. **Mark done, don't delete.** Wrap completed items in `~~strikethrough~~` and append `(done YYYY-MM-DD)`.
-5. **Read before writing.** Always read `cursortodo.md` first to avoid duplicates and to check if the item already exists.
-6. **Create if missing.** If `cursortodo.md` doesn't exist, create it with no heading — just start with the repo bullet.
+4. **Mark done, don't delete.** Use `update_block` to wrap completed items in `~~strikethrough~~` and append `(done YYYY-MM-DD)`.
+5. **Read before writing.** Always read the page first (with `format: "json"`) to get block UUIDs and avoid duplicates.

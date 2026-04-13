@@ -61,7 +61,7 @@ compute_gh_paths() {
 
   md_path="${file_prefix}.md"
   note_path="${file_prefix}${file_sep}note.md"
-  cursor_path="${file_prefix}${file_sep}cursor.yaml"
+  cursor_path="${file_prefix}${file_sep}cursor.md"
 }
 
 # Pipe filter: replaces bare #NNN refs with wikilinks.
@@ -150,6 +150,7 @@ main() {
   created=$(echo "$json" | jq -r '.createdAt[:10]')
   body=$(echo "$json"    | jq -r '.body // ""')
 
+  title=$(echo "$title" | expand_hash_refs)
   body=$(echo "$body" | expand_hash_refs)
 
   local raw_state status
@@ -159,17 +160,25 @@ main() {
   mkdir -p "$dest_dir"
 
   # ------------------------------------------------------------------
-  # 1. cursor.yaml (skipped in --md-only mode)
+  # 1. cursor.md (skipped in --md-only mode)
   # ------------------------------------------------------------------
   if [[ "$md_only" == false ]]; then
-    local yaml_content="title: \"${title}\"
-url: \"${gh_url}\"
-type: ${yaml_type}
-status: ${status}
-author: \"${author}\"
-created: \"${created}\""
+    local cursor_content="# ${title}
 
-    write_if_missing "$cursor_path" "$yaml_content"
+${gh_url}
+
+**Type:** ${yaml_type} | **Status:** ${status} | **Author:** ${author} | **Created:** ${created}
+
+## Analysis
+
+## TODOs
+
+---
+
+[[${wikilink_prefix}]]
+[[${wikilink_prefix}${wikilink_sep}note]]"
+
+    write_if_missing "$cursor_path" "$cursor_content"
   fi
 
   # ------------------------------------------------------------------

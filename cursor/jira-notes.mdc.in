@@ -21,7 +21,7 @@ Any Jira URL matching `https://{{JIRA_ENDPOINT}}/browse/<KEY>`, or a bare Jira k
 
 4. **Read the user's notes (read-only).** Read the `note` file if it exists. These are the user's personal notes, TODOs, and related links. **Never modify this file** -- it belongs to the user.
 
-5. **Write your analysis to the cursor file.** The `cursor` file is your workspace. Replace the YAML metadata with a markdown file containing your analysis:
+5. **Write your analysis to the cursor file.** The `cursor` file is your workspace. Write a markdown file containing your analysis:
    - Summary of the issue and key discussion points
    - Actionable TODOs and next steps
    - Technical notes, code pointers, and suggestions
@@ -47,7 +47,7 @@ The `--check` output looks like:
 {
   "md":     { "path": "/path/to/KEY.md",          "exists": true  },
   "note":   { "path": "/path/to/KEY-note.md",     "exists": true  },
-  "cursor": { "path": "/path/to/KEY-cursor.yaml", "exists": false }
+  "cursor": { "path": "/path/to/KEY-cursor.md", "exists": false }
 }
 ```
 
@@ -57,6 +57,6 @@ The `--check` output looks like:
 |------|-------|---------|
 | `KEY.md` | Script | Auto-populated summary, description, comments, and children list (always regenerated on re-run) |
 | `KEY___note.md` | User | User's personal working notes -- **read-only for the agent** |
-| `KEY___cursor.yaml` | Agent | Agent's analysis, TODOs, and notes -- **agent writes here** |
+| `KEY___cursor.md` | Agent | Agent's analysis, TODOs, and notes -- **agent writes here** |
 
 Note: Closed non-epic issues are skipped entirely. Epic children that are Closed only get an md file (no note or cursor). Only open issues get the full triplet.

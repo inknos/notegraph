@@ -21,7 +21,7 @@ Any GitHub URL matching `https://github.com/{org}/{repo}/{issues|pull}/{number}`
 
 4. **Read the user's notes (read-only).** Read the `note` file (`N-note.md`). These are the user's personal notes, TODOs, and related links. **Never modify this file** -- it belongs to the user.
 
-5. **Write your analysis to the cursor file.** The `cursor` file is your workspace. Replace the YAML metadata with a markdown file containing your analysis:
+5. **Write your analysis to the cursor file.** The `cursor` file is your workspace. Write a markdown file containing your analysis:
    - Summary of the issue/PR and key discussion points
    - Actionable TODOs and next steps
    - Technical notes, code pointers, and suggestions
@@ -45,7 +45,7 @@ The `--check` output looks like:
 {
   "md":     { "path": "/path/to/N.md",          "exists": true  },
   "note":   { "path": "/path/to/N-note.md",     "exists": true  },
-  "cursor": { "path": "/path/to/N-cursor.yaml", "exists": false }
+  "cursor": { "path": "/path/to/N-cursor.md", "exists": false }
 }
 ```
 
@@ -55,4 +55,4 @@ The `--check` output looks like:
 |------|-------|---------|
 | `N.md` | Script | Auto-populated summary, description, and raw comments from GitHub |
 | `N-note.md` | User | User's personal working notes -- **read-only for the agent** |
-| `N-cursor.yaml` | Agent | Agent's analysis, TODOs, and notes -- **agent writes here** |
+| `N-cursor.md` | Agent | Agent's analysis, TODOs, and notes -- **agent writes here** |

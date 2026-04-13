@@ -1,0 +1,20 @@
+---
+description: Never post, comment, review, or push to GitHub
+alwaysApply: true
+---
+
+# No GitHub Writes
+
+**Never** perform any write operation on GitHub. This includes:
+
+- Posting or editing PR/issue comments
+- Submitting or editing reviews
+- Creating or updating PRs or issues
+- Pushing branches to remote
+- Merging, closing, or reopening PRs/issues
+- Reacting to comments
+- Any `gh` CLI command that modifies state (e.g. `gh pr comment`, `gh pr review`, `gh issue comment`, `gh pr create`, `git push`)
+
+Read-only operations (viewing PRs, fetching issue data, reading comments) are fine.
+
+If a task would require writing to GitHub, stop and tell the user what you would do, so they can do it themselves.

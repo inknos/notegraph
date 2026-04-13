@@ -41,7 +41,7 @@ wikilink_for() {
 
 md_path_for()     { echo "$(file_prefix_for "$1").md"; }
 note_path_for()   { echo "$(file_prefix_for "$1")${file_sep}note.md"; }
-cursor_path_for() { echo "$(file_prefix_for "$1")${file_sep}cursor.yaml"; }
+cursor_path_for() { echo "$(file_prefix_for "$1")${file_sep}cursor.md"; }
 
 # ---------------------------------------------------------------------------
 # go-jira helper
@@ -170,13 +170,25 @@ ${comments_section}${gh_link_section}${footer}"
 [[${s_wikilink}${wikilink_sep}cursor]]
 [[${s_wikilink}]]"
 
-    local cursor_content
-    cursor_content="title: \"${s_summary}\"
-url: \"${s_jira_url}\"
-type: $(echo "$json" | jq -r '.issuetype.name | ascii_downcase')
-status: $(echo "$s_status" | tr '[:upper:]' '[:lower:]')
-assignee: \"${s_assignee}\"
-created: \"${s_created}\""
+    local issue_type_lower
+    issue_type_lower=$(echo "$json" | jq -r '.issuetype.name | ascii_downcase')
+    local status_lower
+    status_lower=$(echo "$s_status" | tr '[:upper:]' '[:lower:]')
+
+    local cursor_content="# ${s_summary}
+
+${s_jira_url}
+
+**Type:** ${issue_type_lower} | **Status:** ${status_lower} | **Assignee:** ${s_assignee} | **Created:** ${s_created}
+
+## Analysis
+
+## TODOs
+
+---
+
+[[${s_wikilink}]]
+[[${s_wikilink}${wikilink_sep}note]]"
 
     write_if_missing "$note_path" "$note_content"
     write_if_missing "$cursor_path" "$cursor_content"

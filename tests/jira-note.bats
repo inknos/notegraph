@@ -60,9 +60,9 @@ teardown() {
   [ "$result" = "$TEST_TMPDIR/test.atlassian.net___RUN-3555___note.md" ]
 }
 
-@test "cursor_path_for: appends ___cursor.yaml" {
+@test "cursor_path_for: appends ___cursor.md" {
   result=$(cursor_path_for "RUN-3555")
-  [ "$result" = "$TEST_TMPDIR/test.atlassian.net___RUN-3555___cursor.yaml" ]
+  [ "$result" = "$TEST_TMPDIR/test.atlassian.net___RUN-3555___cursor.md" ]
 }
 
 # -----------------------------------------------------------------------

@@ -4,7 +4,7 @@ RULESDIR      ?= $(HOME)/.cursor/rules
 SCRIPT_DIR    ?= $(CURDIR)/scripts
 BUILDDIR      := build
 
-SCRIPT_TEMPLATES := scripts/jira-note.sh.in scripts/todo-page.sh.in
+SCRIPT_TEMPLATES := scripts/gh-note.sh.in scripts/jira-note.sh.in scripts/todo-page.sh.in
 RULE_TEMPLATES   := $(wildcard cursor/*.mdc.in)
 
 SCRIPTS_GEN := $(patsubst scripts/%.sh.in,$(BUILDDIR)/scripts/%.sh,$(SCRIPT_TEMPLATES))
@@ -36,7 +36,7 @@ install: all install-scripts install-cursor ## Build + copy to destinations
 
 install-scripts: scripts
 	install -d $(BINDIR)
-	install -m 755 scripts/gh-note.sh $(BUILDDIR)/scripts/* -t $(BINDIR)
+	install -m 755 $(BUILDDIR)/scripts/* -t $(BINDIR)
 
 install-cursor: cursor
 	install -d $(RULESDIR) .cursor/rules
