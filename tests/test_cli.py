@@ -435,24 +435,234 @@ class TestJsonFlag:
 
 
 # ---------------------------------------------------------------------------
-# Jira fetch+write (still raises NotImplementedError)
+# Jira fetch+write
 # ---------------------------------------------------------------------------
+
+_MOCK_JIRA_CONTENT = NoteContent(
+    title="Implement retry logic",
+    url="https://test.atlassian.net/browse/RUN-100",
+    source="jira",
+    status="In Progress",
+    author="Ada Lovelace",
+    created="2024-01-10",
+    description="Add retry logic.",
+    comments=[Comment(author="PM User", date="2024-01-12", body="Priority raised.")],
+    note_type="story",
+    extra={"assignee": "Ada Lovelace", "issue_type": "Story"},
+)
+
+_MOCK_JIRA_CONTENT_WITH_GH = NoteContent(
+    title="Implement retry logic",
+    url="https://test.atlassian.net/browse/RUN-100",
+    source="jira",
+    status="In Progress",
+    author="Ada Lovelace",
+    created="2024-01-10",
+    description="Add retry logic.",
+    comments=[],
+    note_type="story",
+    extra={
+        "assignee": "Ada Lovelace",
+        "issue_type": "Story",
+        "github_url": "https://github.com/acme/widgets/pull/123",
+    },
+)
 
 
 class TestJiraFetchWrite:
-    def test_jira_write_not_implemented(self, sample_config_toml):
-        exit_code, _stdout, stderr = run_cli(
+    @patch("notegraph.cli.jira_api.fetch", return_value=_MOCK_JIRA_CONTENT)
+    def test_writes_jira_files(self, mock_fetch, sample_config_toml, tmp_path):
+        graph_dir = _extract_graph_dir(sample_config_toml)
+        exit_code, _, _ = run_cli(
             "--config",
             str(sample_config_toml),
             "jira",
             "RUN-100",
         )
-        assert exit_code != 0
-        assert "not yet implemented" in stderr
+        assert exit_code == 0
+        mock_fetch.assert_called_once()
+
+        md = Path(graph_dir) / "test.atlassian.net___RUN-100.md"
+        note = Path(graph_dir) / "test.atlassian.net___RUN-100___note.md"
+        cursor = Path(graph_dir) / "test.atlassian.net___RUN-100___cursor.md"
+        assert md.is_file()
+        assert note.is_file()
+        assert cursor.is_file()
+        assert "Implement retry logic" in md.read_text(encoding="utf-8")
+
+    @patch("notegraph.cli.github_api.fetch", return_value=_MOCK_GH_CONTENT)
+    @patch("notegraph.cli.jira_api.fetch", return_value=_MOCK_JIRA_CONTENT_WITH_GH)
+    def test_chains_github(self, mock_jira, mock_gh, sample_config_toml, tmp_path):
+        graph_dir = _extract_graph_dir(sample_config_toml)
+        exit_code, _, _ = run_cli(
+            "--config",
+            str(sample_config_toml),
+            "jira",
+            "RUN-100",
+        )
+        assert exit_code == 0
+        mock_jira.assert_called_once()
+        mock_gh.assert_called_once()
+
+        jira_md = Path(graph_dir) / "test.atlassian.net___RUN-100.md"
+        gh_md = Path(graph_dir) / "github.com___acme___widgets___pull___123.md"
+        assert jira_md.is_file()
+        assert gh_md.is_file()
+
+    @patch("notegraph.cli.jira_api.fetch", return_value=_MOCK_JIRA_CONTENT)
+    def test_no_chain_without_github_url(self, mock_jira, sample_config_toml, tmp_path):
+        graph_dir = _extract_graph_dir(sample_config_toml)
+        exit_code, _, _ = run_cli(
+            "--config",
+            str(sample_config_toml),
+            "jira",
+            "RUN-100",
+        )
+        assert exit_code == 0
+
+        gh_files = list(Path(graph_dir).glob("github.com*"))
+        assert gh_files == []
 
 
 # ---------------------------------------------------------------------------
-# --todo flag
+# Jira --todo flag
+# ---------------------------------------------------------------------------
+
+_MOCK_JIRA_TODO_ITEMS = [
+    TodoItem(
+        url="https://test.atlassian.net/browse/RUN-100",
+        title="Fix the widget",
+        source="jira",
+        kind="bug",
+        state="In Progress",
+        repo="RUN",
+        updated_at="2026-04-10",
+    ),
+    TodoItem(
+        url="https://test.atlassian.net/browse/RUN-50",
+        title="Add caching",
+        source="jira",
+        kind="story",
+        state="Open",
+        repo="RUN",
+        updated_at="2026-04-08",
+    ),
+]
+
+
+class TestJiraTodoFlag:
+    @patch(
+        "notegraph.cli.jira_api.fetch_todo",
+        return_value=_MOCK_JIRA_TODO_ITEMS,
+    )
+    def test_todo_plain_output(self, mock_fetch, sample_config_toml):
+        exit_code, stdout, _ = run_cli(
+            "--config",
+            str(sample_config_toml),
+            "jira",
+            "--todo",
+            "--jql",
+            "project = RUN",
+        )
+        assert exit_code == 0
+        lines = stdout.strip().splitlines()
+        assert len(lines) == 2
+        assert "RUN-100" in lines[0]
+        assert "RUN-50" in lines[1]
+
+    @patch(
+        "notegraph.cli.jira_api.fetch_todo",
+        return_value=_MOCK_JIRA_TODO_ITEMS,
+    )
+    def test_todo_json_output(self, mock_fetch, sample_config_toml):
+        exit_code, stdout, _ = run_cli(
+            "--config",
+            str(sample_config_toml),
+            "jira",
+            "--todo",
+            "--json",
+            "--jql",
+            "project = RUN",
+        )
+        assert exit_code == 0
+        data = json.loads(stdout)
+        assert len(data) == 2
+        assert data[0]["source"] == "jira"
+        assert data[0]["kind"] == "bug"
+        assert data[1]["kind"] == "story"
+
+    @patch(
+        "notegraph.cli.jira_api.fetch_todo",
+        return_value=[],
+    )
+    def test_todo_empty_jql_from_config(self, mock_fetch, sample_config_toml):
+        """--todo with empty JQL in config returns empty list."""
+        exit_code, stdout, _ = run_cli(
+            "--config",
+            str(sample_config_toml),
+            "jira",
+            "--todo",
+        )
+        assert exit_code == 0
+        assert stdout.strip() == ""
+        call_kwargs = mock_fetch.call_args.kwargs
+        assert call_kwargs["jql"] == ""
+
+    @patch(
+        "notegraph.cli.jira_api.fetch_todo",
+        return_value=_MOCK_JIRA_TODO_ITEMS,
+    )
+    def test_cli_jql_overrides_config(self, mock_fetch, sample_config_toml):
+        """--jql flag overrides the JQL from config."""
+        exit_code, _, _ = run_cli(
+            "--config",
+            str(sample_config_toml),
+            "jira",
+            "--todo",
+            "--jql",
+            "assignee = me",
+        )
+        assert exit_code == 0
+        call_kwargs = mock_fetch.call_args.kwargs
+        assert call_kwargs["jql"] == "assignee = me"
+
+    @patch(
+        "notegraph.cli.jira_api.fetch_todo",
+        return_value=_MOCK_JIRA_TODO_ITEMS,
+    )
+    def test_config_jql_used_when_no_cli_flag(self, mock_fetch, tmp_path):
+        """JQL from config is used when --jql not passed."""
+        config = tmp_path / "cfg.toml"
+        graph_dir = tmp_path / "logseq_pages"
+        graph_dir.mkdir()
+        config.write_text(
+            f'[logseq]\ngraph_dir = "{graph_dir}"\n'
+            '[jira]\nendpoint = "test.atlassian.net"\n'
+            'jql = "project = FROMCONF"\n',
+            encoding="utf-8",
+        )
+        exit_code, _, _ = run_cli(
+            "--config",
+            str(config),
+            "jira",
+            "--todo",
+        )
+        assert exit_code == 0
+        call_kwargs = mock_fetch.call_args.kwargs
+        assert call_kwargs["jql"] == "project = FROMCONF"
+
+    def test_no_key_no_todo_errors(self, sample_config_toml):
+        exit_code, _, stderr = run_cli(
+            "--config",
+            str(sample_config_toml),
+            "jira",
+        )
+        assert exit_code != 0
+        assert "key is required" in stderr
+
+
+# ---------------------------------------------------------------------------
+# GitHub --todo flag
 # ---------------------------------------------------------------------------
 
 _MOCK_TODO_ITEMS = [

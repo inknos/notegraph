@@ -245,6 +245,64 @@ class TestWriteJira:
         assert "[[test.atlassian.net/RUN-3555/cursor]]" in md_text
         assert "[[test.atlassian.net/RUN-3555/note]]" in md_text
 
+    def test_jira_md_no_github_section_by_default(
+        self,
+        tmp_dest_dir,
+        sample_jira_content,
+        sample_jira_ref,
+    ):
+        write(sample_jira_content, sample_jira_ref, str(tmp_dest_dir))
+
+        pi = PathInfo.from_jira(sample_jira_ref, str(tmp_dest_dir))
+        md_text = Path(pi.md_path).read_text(encoding="utf-8")
+        assert "## GitHub PR" not in md_text
+
+    def test_jira_md_github_section(self, tmp_dest_dir, sample_jira_ref):
+        content = NoteContent(
+            title="Issue with GH link",
+            url="https://test.atlassian.net/browse/RUN-3555",
+            source="jira",
+            status="Open",
+            author="Dev",
+            created="2024-01-01",
+            description="Has a linked PR.",
+            note_type="story",
+            extra={
+                "github_url": "https://github.com/acme/widgets/pull/99",
+            },
+        )
+        write(content, sample_jira_ref, str(tmp_dest_dir))
+
+        pi = PathInfo.from_jira(sample_jira_ref, str(tmp_dest_dir))
+        md_text = Path(pi.md_path).read_text(encoding="utf-8")
+        assert "## GitHub PR" in md_text
+        assert "[[github.com/acme/widgets/pull/99]]" in md_text
+        assert "[https://github.com/acme/widgets/pull/99]" in md_text
+
+    def test_jira_github_section_no_duplicate_in_footer(self, tmp_dest_dir, sample_jira_ref):
+        content = NoteContent(
+            title="Issue with GH link",
+            url="https://test.atlassian.net/browse/RUN-3555",
+            source="jira",
+            status="Open",
+            author="Dev",
+            created="2024-01-01",
+            description="Has a linked PR.",
+            note_type="story",
+            extra={
+                "github_url": "https://github.com/acme/widgets/pull/99",
+            },
+        )
+        write(content, sample_jira_ref, str(tmp_dest_dir))
+
+        pi = PathInfo.from_jira(sample_jira_ref, str(tmp_dest_dir))
+        md_text = Path(pi.md_path).read_text(encoding="utf-8")
+        footer_start = md_text.index("---")
+        footer = md_text[footer_start:]
+        assert "github.com" not in footer
+        assert "test.atlassian.net/RUN-3555/cursor" in footer
+        assert "test.atlassian.net/RUN-3555/note" in footer
+
 
 # ---------------------------------------------------------------------------
 # render() — returns content without writing

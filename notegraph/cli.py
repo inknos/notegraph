@@ -31,6 +31,11 @@ GitHub todo options (use instead of URL):
     --org ORG             GitHub org to search (repeatable).
     --repo OWNER/REPO     GitHub repo to search (repeatable).
 
+Jira todo options (use instead of KEY):
+
+    --todo                List issues matching a JQL query.
+    --jql QUERY           JQL query (overrides config; empty = no search).
+
 File selection logic:
 
     If any *positive* flag (--summary, --note, --analysis) is given,
@@ -46,6 +51,9 @@ Examples::
     notegraph github --todo --org containers
     notegraph github --todo --org containers --repo myorg/tool --json
     notegraph jira --analysis --note RUN-3555
+    notegraph jira --todo
+    notegraph jira --todo --jql "assignee = currentUser() AND status != Done"
+    notegraph jira --todo --json
 """
 
 from __future__ import annotations
@@ -63,10 +71,13 @@ from pydantic import BaseModel
 from notegraph import github as github_api
 from notegraph import jira as jira_api
 from notegraph import writer
+from notegraph.github import FetchError as GitHubFetchError
+from notegraph.jira import FetchError as JiraFetchError
 from notegraph.schema import (
     FileKind,
     GitHubRef,
     JiraRef,
+    NoteContent,
 )
 from notegraph.writer import check as writer_check
 
@@ -87,6 +98,8 @@ class JiraConfig(BaseModel):
     email: str = ""
     token: str = ""
     repo: str = "~/Documents/personal_projects/notegraph/jira"
+    github_field: str = "customfield_10875"
+    jql: str = ""
 
 
 class GitHubConfig(BaseModel):
@@ -307,7 +320,18 @@ class GitHubArgs(BaseModel):
 class JiraArgs(BaseModel):
     """Arguments for the ``jira`` subcommand."""
 
-    key: Annotated[str, Parameter(help="Jira issue key or browse URL.")]
+    key: Annotated[
+        str | None,
+        Parameter(help="Jira issue key or browse URL (required unless --todo)."),
+    ] = None
+    todo: Annotated[
+        bool,
+        Parameter(help="List open issues matching a JQL query."),
+    ] = False
+    jql: Annotated[
+        str | None,
+        Parameter(help="JQL query for --todo (overrides config)."),
+    ] = None
     check: Annotated[
         bool,
         Parameter(help="Show file paths and existence, then exit."),
@@ -412,13 +436,17 @@ def github(args: Annotated[GitHubArgs, Parameter(name="*")] = _DEFAULT_GH_ARGS) 
     writer.write(content, ref, dest, kinds=kinds, replace=args.replace)
 
 
+_DEFAULT_JIRA_ARGS = JiraArgs()
+
+
 @app.command
-def jira(args: Annotated[JiraArgs, Parameter(name="*")]) -> None:
+def jira(args: Annotated[JiraArgs, Parameter(name="*")] = _DEFAULT_JIRA_ARGS) -> None:
     """Create note files for a Jira issue.
 
     Fetches data from the Jira API and renders note files in Logseq
     format.
 
+    Use ``--todo [--jql QUERY]`` to list issues matching a JQL query.
     Use ``--check`` to inspect file paths without fetching.
     Use ``--json`` to get machine-readable output (no files written).
     Use ``--summary``, ``--note``, ``--analysis`` to select which files
@@ -427,6 +455,27 @@ def jira(args: Annotated[JiraArgs, Parameter(name="*")]) -> None:
     (summary is always overwritten).
     """
     cfg = _get_config()
+
+    if args.todo:
+        jql = args.jql if args.jql is not None else cfg.jira.jql
+        items = jira_api.fetch_todo(
+            endpoint=cfg.jira.endpoint,
+            jql=jql,
+            email=cfg.jira.email,
+            token=cfg.jira.token,
+        )
+        if args.json_output:
+            out = [item.model_dump() for item in items]
+            sys.stdout.write(json.dumps(out, indent=2) + "\n")
+        else:
+            for item in items:
+                sys.stdout.write(item.url + "\n")
+        return
+
+    if not args.key:
+        sys.stderr.write("Error: a Jira key is required (or use --todo).\n")
+        raise SystemExit(1)
+
     ref = JiraRef.from_string(args.key, default_endpoint=cfg.jira.endpoint)
     dest = args.dest_dir or cfg.dest_dir
 
@@ -447,6 +496,7 @@ def jira(args: Annotated[JiraArgs, Parameter(name="*")]) -> None:
         ref,
         email=cfg.jira.email,
         token=cfg.jira.token,
+        github_field=cfg.jira.github_field,
     )
 
     if args.json_output:
@@ -456,8 +506,39 @@ def jira(args: Annotated[JiraArgs, Parameter(name="*")]) -> None:
         return
 
     writer.write(content, ref, dest, kinds=kinds, replace=args.replace)
+    _chain_github(content, dest, cfg=cfg, replace=args.replace)
+
+
+def _chain_github(
+    content: NoteContent,
+    dest: str,
+    *,
+    cfg: AppConfig,
+    replace: bool,
+) -> None:
+    """If *content* references a GitHub PR/issue, fetch and write its notes.
+
+    Args:
+        content: Jira note content (may contain ``extra["github_url"]``).
+        dest: Output directory.
+        cfg: Application config (provides the GitHub token).
+        replace: Whether to overwrite existing files.
+    """
+    gh_url = content.extra.get("github_url")
+    if not gh_url:
+        return
+    try:
+        gh_ref = GitHubRef.from_url(gh_url)
+    except ValueError:
+        return
+    gh_content = github_api.fetch(gh_ref, token=cfg.github.token)
+    writer.write(gh_content, gh_ref, dest, replace=replace)
 
 
 def main() -> None:
     """Entry point for the ``notegraph`` command."""
-    app.meta()
+    try:
+        app.meta()
+    except (GitHubFetchError, JiraFetchError) as exc:
+        sys.stderr.write(f"Error: {exc}\n")
+        raise SystemExit(1) from None

@@ -553,12 +553,27 @@ class NoteBody(BaseModel):
             Populated body.
         """
         if kind == "md":
-            sections = [
+            sections: list[Section] = []
+            gh_url = content.extra.get("github_url")
+            if gh_url and isinstance(gh_url, str):
+                gh_match = _GH_URL_RE.match(gh_url)
+                if gh_match:
+                    wl = (
+                        f"github.com/{gh_match['org']}/{gh_match['repo']}"
+                        f"/{gh_match['url_type']}/{gh_match['number']}"
+                    )
+                    sections.append(
+                        Section(
+                            heading="GitHub PR",
+                            content=f"[{gh_url}]({gh_url})\n[[{wl}]]",
+                        ),
+                    )
+            sections.append(
                 Section(
                     heading="Key Discussion Points",
                     content="<!-- summarize the above comments here -->",
-                )
-            ]
+                ),
+            )
             return cls(
                 description=content.description,
                 comments=content.comments,

@@ -50,6 +50,23 @@ class TestEmptyConfig:
         assert cfg.github.token == ""
 
 
+class TestJqlConfig:
+    def test_default_jql_is_empty(self, tmp_path):
+        cfg_path = tmp_path / "empty.toml"
+        cfg_path.write_text("", encoding="utf-8")
+        cfg = load_config(cfg_path)
+        assert cfg.jira.jql == ""
+
+    def test_jql_from_toml(self, tmp_path):
+        cfg_path = tmp_path / "jql.toml"
+        cfg_path.write_text(
+            '[jira]\njql = "assignee = currentUser()"',
+            encoding="utf-8",
+        )
+        cfg = load_config(cfg_path)
+        assert cfg.jira.jql == "assignee = currentUser()"
+
+
 class TestDestDir:
     def test_logseq_dest_dir(self, sample_config_toml):
         cfg = load_config(sample_config_toml)

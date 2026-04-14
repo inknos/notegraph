@@ -7,6 +7,8 @@ endpoint = "redhat.atlassian.net"
 email = ""
 token = ""   # prefer env JIRA_TOKEN
 repo = "~/Documents/personal_projects/notegraph/jira"
+github_field = "customfield_10875"
+jql = ""     # JQL for --todo; empty = no search
 
 [github]
 token = ""   # prefer env GITHUB_TOKEN

@@ -12,6 +12,18 @@ wheels = [
 ]
 
 [[package]]
+name = "atlas-doc-parser"
+version = "1.0.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "func-args" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/82/ad/820a1e9b8abbdbb9ce985ad1b7aa515d3a408137c24096de3b7e282d1d89/atlas_doc_parser-1.0.1.tar.gz", hash = "sha256:a04e17648d39bce6fbbac073d685a6a9c485aca19d77781684504a0ba2776213", size = 39008, upload-time = "2026-01-04T04:52:52.179Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/5d/28/87c1ebcf142e0199866311404117fb61fed6c5865ec943b89cea380b679c/atlas_doc_parser-1.0.1-py3-none-any.whl", hash = "sha256:c96ba365dfa895145a27eab409a0479d9532338b031c968062d4afb44e36a48c", size = 74009, upload-time = "2026-01-04T04:52:50.64Z" },
+]
+
+[[package]]
 name = "attrs"
 version = "26.1.0"
 source = { registry = "https://pypi.org/simple" }
@@ -129,6 +141,15 @@ wheels = [
 ]
 
 [[package]]
+name = "func-args"
+version = "1.0.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/c9/f0/e3410fc39cb3b4d64206cb97c42a7ff1c2e4cd26516903069daf19b2102b/func_args-1.0.1.tar.gz", hash = "sha256:f07c2620fa446da54eb0888d5063167b1068d566e1f9a1879fe912c3d7497821", size = 14577, upload-time = "2025-05-08T03:45:43.549Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/8f/04/51cce2f0ebe02fc7f15186658a9f129fba2d3b5055e3764d1bf087839988/func_args-1.0.1-py3-none-any.whl", hash = "sha256:4562f4eaa0d68142a6ab5ad1f212959fabc2c4cc029b77446bcc377d737e3db4", size = 15268, upload-time = "2025-05-08T03:45:41.982Z" },
+]
+
+[[package]]
 name = "idna"
 version = "3.11"
 source = { registry = "https://pypi.org/simple" }
@@ -172,6 +193,7 @@ name = "notegraph"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "atlas-doc-parser" },
     { name = "cyclopts" },
     { name = "pydantic" },
     { name = "requests" },
@@ -185,6 +207,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "atlas-doc-parser" },
     { name = "cyclopts" },
     { name = "pydantic" },
     { name = "pytest", marker = "extra == 'dev'" },
