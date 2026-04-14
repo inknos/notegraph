@@ -19,6 +19,7 @@ from notegraph.schema import (
     NoteTriplet,
     PathInfo,
     Section,
+    expand_hash_refs,
 )
 
 # ===================================================================
@@ -507,3 +508,43 @@ class TestNoteTags:
         )
         tags = NoteTags.from_jira_content(content)
         assert tags.kind == "story"
+
+
+# ===================================================================
+# expand_hash_refs
+# ===================================================================
+
+
+class TestExpandHashRefs:
+    def test_bare_ref_replaced(self):
+        result = expand_hash_refs("See #1234 for details", "containers", "podman")
+        assert result == "See [[github.com/containers/podman/issues/1234]] for details"
+
+    def test_multiple_refs(self):
+        result = expand_hash_refs("Fixes #10 and #20", "myorg", "myrepo")
+        assert result == (
+            "Fixes [[github.com/myorg/myrepo/issues/10]] and [[github.com/myorg/myrepo/issues/20]]"
+        )
+
+    def test_already_linked_not_doubled(self):
+        text = "See [[github.com/o/r/issues/5]] already"
+        assert expand_hash_refs(text, "o", "r") == text
+
+    def test_html_entity_not_touched(self):
+        result = expand_hash_refs("char &#123; here", "o", "r")
+        assert result == "char &#123; here"
+
+    def test_ref_at_start_of_line(self):
+        result = expand_hash_refs("#99 is the issue", "a", "b")
+        assert result == "[[github.com/a/b/issues/99]] is the issue"
+
+    def test_no_digits_after_hash(self):
+        text = "use # for comments"
+        assert expand_hash_refs(text, "o", "r") == text
+
+    def test_empty_string(self):
+        assert expand_hash_refs("", "o", "r") == ""
+
+    def test_no_refs_unchanged(self):
+        text = "Just a normal sentence."
+        assert expand_hash_refs(text, "o", "r") == text

@@ -29,6 +29,27 @@ _JIRA_URL_RE = re.compile(
 
 _JIRA_KEY_RE = re.compile(r"^[A-Za-z]+-\d+$")
 
+_HASH_REF_RE = re.compile(r"(^|[^\[&])#(\d+)")
+
+
+def expand_hash_refs(text: str, org: str, repo: str) -> str:
+    """Replace bare ``#N`` references with Logseq wikilinks.
+
+    ``#123`` becomes ``[[github.com/{org}/{repo}/issues/123]]``.
+    Already-linked refs (preceded by ``[``) and HTML entities
+    (preceded by ``&``) are left alone.  Always uses the ``/issues/``
+    path — GitHub treats it as an alias for PRs.
+
+    Args:
+        text: Raw text potentially containing ``#N`` references.
+        org: GitHub organisation / owner.
+        repo: GitHub repository name.
+
+    Returns:
+        Text with bare hash refs expanded to wikilinks.
+    """
+    return _HASH_REF_RE.sub(rf"\1[[github.com/{org}/{repo}/issues/\2]]", text)
+
 
 class GitHubRef(BaseModel):
     """Parsed GitHub issue or PR reference."""

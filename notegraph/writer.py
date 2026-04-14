@@ -13,6 +13,7 @@ import logging
 from pathlib import Path
 
 from notegraph.schema import (
+    Comment,
     FileKind,
     GitHubRef,
     JiraRef,
@@ -22,6 +23,7 @@ from notegraph.schema import (
     NoteTriplet,
     PathInfo,
     RenderedNote,
+    expand_hash_refs,
 )
 
 logger = logging.getLogger(__name__)
@@ -70,10 +72,22 @@ def render(
     """
     paths = PathInfo.from_ref(ref, dest_dir)
 
+    if isinstance(ref, GitHubRef):
+        expanded = _expand_content(content, ref.org, ref.repo)
+    else:
+        expanded = content
+
     result: dict[str, RenderedNote] = {}
     for kind in kinds:
-        header = NoteHeader.from_content(content, paths, kind)
-        body = NoteBody.from_content(content, kind)
+        effective = (
+            expanded
+            if kind == "md"
+            else content.model_copy(
+                update={"title": expanded.title},
+            )
+        )
+        header = NoteHeader.from_content(effective, paths, kind)
+        body = NoteBody.from_content(effective, kind)
         text = _assemble(header, body, kind)
         result[kind] = RenderedNote(path=paths.path_for(kind), content=text)
 
@@ -138,6 +152,33 @@ def _assemble(
     body_str = body.to_string(kind)
     footer = _footer(header, kind)
     return f"{header_str}{body_str}{footer}"
+
+
+def _expand_content(content: NoteContent, org: str, repo: str) -> NoteContent:
+    """Return a copy of *content* with ``#N`` refs expanded to wikilinks.
+
+    Args:
+        content: Original note content.
+        org: GitHub organisation / owner.
+        repo: GitHub repository name.
+
+    Returns:
+        A shallow copy with title, description, and comment bodies expanded.
+    """
+    return content.model_copy(
+        update={
+            "title": expand_hash_refs(content.title, org, repo),
+            "description": expand_hash_refs(content.description, org, repo),
+            "comments": [
+                Comment(
+                    author=c.author,
+                    date=c.date,
+                    body=expand_hash_refs(c.body, org, repo),
+                )
+                for c in content.comments
+            ],
+        },
+    )
 
 
 def _footer(header: NoteHeader, kind: FileKind) -> str:  # noqa: ARG001

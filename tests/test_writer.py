@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from notegraph.schema import PathInfo, RenderedNote
+from notegraph.schema import Comment, GitHubRef, JiraRef, NoteContent, PathInfo, RenderedNote
 from notegraph.writer import check, render, write
 
 
@@ -360,3 +360,78 @@ class TestRenderedNoteModel:
         j = rn.model_dump_json()
         assert '"path"' in j
         assert '"content"' in j
+
+
+# ---------------------------------------------------------------------------
+# Hash ref expansion (#N -> [[wikilink]])
+# ---------------------------------------------------------------------------
+
+_HASHREF_CONTENT = NoteContent(
+    title="Fix #42 regression",
+    url="https://github.com/org/repo/pull/99",
+    source="github",
+    status="open",
+    author="dev",
+    created="2024-01-01",
+    description="See #10 for context.",
+    comments=[Comment(author="rev", date="2024-01-02", body="Related to #20.")],
+    note_type="pull_request",
+)
+
+_HASHREF_REF = GitHubRef(org="org", repo="repo", url_type="pull", number=99)
+
+
+class TestHashRefExpansion:
+    def test_md_expands_description(self, tmp_dest_dir):
+        write(_HASHREF_CONTENT, _HASHREF_REF, str(tmp_dest_dir))
+        pi = PathInfo.from_github(_HASHREF_REF, str(tmp_dest_dir))
+        md = Path(pi.md_path).read_text(encoding="utf-8")
+        assert "[[github.com/org/repo/issues/10]]" in md
+        assert "#10" not in md.split("[[github.com/org/repo/issues/10]]")[0].split("\n")[-1]
+
+    def test_md_expands_comments(self, tmp_dest_dir):
+        write(_HASHREF_CONTENT, _HASHREF_REF, str(tmp_dest_dir))
+        pi = PathInfo.from_github(_HASHREF_REF, str(tmp_dest_dir))
+        md = Path(pi.md_path).read_text(encoding="utf-8")
+        assert "[[github.com/org/repo/issues/20]]" in md
+
+    def test_md_expands_title(self, tmp_dest_dir):
+        write(_HASHREF_CONTENT, _HASHREF_REF, str(tmp_dest_dir))
+        pi = PathInfo.from_github(_HASHREF_REF, str(tmp_dest_dir))
+        md = Path(pi.md_path).read_text(encoding="utf-8")
+        assert "Fix [[github.com/org/repo/issues/42]] regression" in md
+
+    def test_note_title_expanded_body_unchanged(self, tmp_dest_dir):
+        write(_HASHREF_CONTENT, _HASHREF_REF, str(tmp_dest_dir))
+        pi = PathInfo.from_github(_HASHREF_REF, str(tmp_dest_dir))
+        note = Path(pi.note_path).read_text(encoding="utf-8")
+        assert "[[github.com/org/repo/issues/42]]" in note
+        assert "[[github.com/org/repo/issues/10]]" not in note
+
+    def test_cursor_title_expanded_body_unchanged(self, tmp_dest_dir):
+        write(_HASHREF_CONTENT, _HASHREF_REF, str(tmp_dest_dir))
+        pi = PathInfo.from_github(_HASHREF_REF, str(tmp_dest_dir))
+        cursor = Path(pi.cursor_path).read_text(encoding="utf-8")
+        assert "[[github.com/org/repo/issues/42]]" in cursor
+        assert "[[github.com/org/repo/issues/10]]" not in cursor
+
+    def test_jira_no_expansion(self, tmp_dest_dir, sample_jira_content):
+        jira_content = sample_jira_content.model_copy(
+            update={"description": "See #99 for details"},
+        )
+        jira_ref = JiraRef(endpoint="test.atlassian.net", key="RUN-100")
+        write(jira_content, jira_ref, str(tmp_dest_dir))
+        pi = PathInfo.from_jira(jira_ref, str(tmp_dest_dir))
+        md = Path(pi.md_path).read_text(encoding="utf-8")
+        assert "#99" in md
+        assert "[[github.com" not in md
+
+    def test_render_md_expanded(self, tmp_dest_dir):
+        result = render(_HASHREF_CONTENT, _HASHREF_REF, str(tmp_dest_dir))
+        assert "[[github.com/org/repo/issues/10]]" in result["md"].content
+        assert "[[github.com/org/repo/issues/20]]" in result["md"].content
+
+    def test_render_note_title_only(self, tmp_dest_dir):
+        result = render(_HASHREF_CONTENT, _HASHREF_REF, str(tmp_dest_dir))
+        assert "[[github.com/org/repo/issues/42]]" in result["note"].content
+        assert "[[github.com/org/repo/issues/10]]" not in result["note"].content
