@@ -1,13 +1,7 @@
-"""Pydantic models for notegraph notes, paths, and rendering.
-
-Every "renderable" model (PathInfo, NoteHeader, NoteBody) has a
-``to_string`` method that serializes the data for a given output
-format (logseq, cosma).
-"""
+"""Pydantic models for notegraph notes, paths, and rendering."""
 
 from __future__ import annotations
 
-import hashlib
 import re
 from pathlib import Path
 from typing import Any, Literal
@@ -17,53 +11,8 @@ from pydantic import BaseModel, model_validator
 # ---------------------------------------------------------------------------
 # Type aliases
 # ---------------------------------------------------------------------------
-Format = Literal["logseq", "cosma"]
+Format = Literal["logseq"]
 FileKind = Literal["md", "note", "cursor"]
-
-# ---------------------------------------------------------------------------
-# Cosma helpers
-# ---------------------------------------------------------------------------
-
-_COSMA_KIND_TYPE: dict[FileKind, str] = {
-    "md": "summary",
-    "note": "notes",
-    "cursor": "analysis",
-}
-
-_COSMA_LINK_TARGETS: dict[FileKind, tuple[FileKind, FileKind]] = {
-    "md": ("cursor", "note"),
-    "note": ("cursor", "md"),
-    "cursor": ("md", "note"),
-}
-
-_COSMA_LINK_TYPE: dict[tuple[FileKind, FileKind], str] = {
-    ("md", "cursor"): "with_analysis",
-    ("md", "note"): "with_notes",
-    ("cursor", "md"): "analyzes_summary",
-    ("cursor", "note"): "with_complementary_notes",
-    ("note", "md"): "annotates_summary",
-    ("note", "cursor"): "with_complementary_analysis",
-}
-
-
-def _cosma_id(canonical: str, kind: FileKind) -> str:
-    """Generate a deterministic 14-digit Cosma ID.
-
-    The ID is derived from a SHA-256 hash of the canonical reference
-    string combined with the file kind, ensuring that re-runs always
-    produce the same value.
-
-    Args:
-        canonical: Canonical string identifying the resource (e.g. URL).
-        kind: Which file in the triplet.
-
-    Returns:
-        A 14-digit zero-padded numeric string.
-    """
-    key = f"{canonical}:{kind}"
-    digest = hashlib.sha256(key.encode()).hexdigest()
-    return str(int(digest[:12], 16) % 10**14).zfill(14)
-
 
 # ---------------------------------------------------------------------------
 # Source refs — parse CLI input into structured data
@@ -227,7 +176,7 @@ class RenderedNote(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# PathInfo — renderable, computed from a ref + dest_dir + format
+# PathInfo — renderable, computed from a ref + dest_dir
 # ---------------------------------------------------------------------------
 
 
@@ -238,7 +187,6 @@ class PathInfo(BaseModel):
     file_sep: str
     wikilink_prefix: str
     wikilink_sep: str
-    cosma_ids: dict[str, str] = {}
 
     @property
     def md_path(self) -> str:
@@ -285,30 +233,16 @@ class PathInfo(BaseModel):
     # -- factory classmethods -----------------------------------------------
 
     @classmethod
-    def from_github(cls, ref: GitHubRef, dest_dir: str, fmt: Format) -> PathInfo:
+    def from_github(cls, ref: GitHubRef, dest_dir: str) -> PathInfo:
         """Build ``PathInfo`` for a GitHub ref.
 
         Args:
             ref: Parsed GitHub reference.
             dest_dir: Output directory.
-            fmt: Output format (``logseq`` or ``cosma``).
 
         Returns:
             Computed path info.
         """
-        if fmt == "cosma":
-            slug = f"github-{ref.org}-{ref.repo}-{ref.url_type}-{ref.number}"
-            file_prefix = f"{dest_dir}/{slug}"
-            canonical = ref.canonical_url
-            ids = {k: _cosma_id(canonical, k) for k in ("md", "note", "cursor")}
-            return cls(
-                file_prefix=file_prefix,
-                file_sep="-",
-                wikilink_prefix="",
-                wikilink_sep="",
-                cosma_ids=ids,
-            )
-
         page_ns = f"github.com___{ref.org}___{ref.repo}___{ref.url_type}"
         file_prefix = f"{dest_dir}/{page_ns}___{ref.number}"
         wikilink_prefix = f"github.com/{ref.org}/{ref.repo}/{ref.url_type}/{ref.number}"
@@ -320,30 +254,16 @@ class PathInfo(BaseModel):
         )
 
     @classmethod
-    def from_jira(cls, ref: JiraRef, dest_dir: str, fmt: Format) -> PathInfo:
+    def from_jira(cls, ref: JiraRef, dest_dir: str) -> PathInfo:
         """Build ``PathInfo`` for a Jira ref.
 
         Args:
             ref: Parsed Jira reference.
             dest_dir: Output directory.
-            fmt: Output format (``logseq`` or ``cosma``).
 
         Returns:
             Computed path info.
         """
-        if fmt == "cosma":
-            slug = f"jira-{ref.key}"
-            file_prefix = f"{dest_dir}/{slug}"
-            canonical = ref.browse_url
-            ids = {k: _cosma_id(canonical, k) for k in ("md", "note", "cursor")}
-            return cls(
-                file_prefix=file_prefix,
-                file_sep="-",
-                wikilink_prefix="",
-                wikilink_sep="",
-                cosma_ids=ids,
-            )
-
         file_prefix = f"{dest_dir}/{ref.endpoint}___{ref.key}"
         wikilink_prefix = f"{ref.endpoint}/{ref.key}"
         return cls(
@@ -354,25 +274,19 @@ class PathInfo(BaseModel):
         )
 
     @classmethod
-    def from_ref(
-        cls,
-        ref: GitHubRef | JiraRef,
-        dest_dir: str,
-        fmt: Format,
-    ) -> PathInfo:
+    def from_ref(cls, ref: GitHubRef | JiraRef, dest_dir: str) -> PathInfo:
         """Dispatch to ``from_github`` or ``from_jira``.
 
         Args:
             ref: A GitHub or Jira reference.
             dest_dir: Output directory.
-            fmt: Output format.
 
         Returns:
             Computed path info.
         """
         if isinstance(ref, GitHubRef):
-            return cls.from_github(ref, dest_dir, fmt)
-        return cls.from_jira(ref, dest_dir, fmt)
+            return cls.from_github(ref, dest_dir)
+        return cls.from_jira(ref, dest_dir)
 
 
 # ---------------------------------------------------------------------------
@@ -421,38 +335,19 @@ class TodoItem(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# NoteTags — structured tag data with format-specific rendering
+# NoteTags — structured tag data
 # ---------------------------------------------------------------------------
 
 
 class NoteTags(BaseModel):
-    """Structured tag data, format-agnostic.
+    """Structured tag data for a note.
 
-    Holds the raw tag facets and renders them for each output format.
+    Holds the raw tag facets (source, kind, org/repo).
     """
 
     source: Literal["github", "jira"]
     kind: str
     org_repo: str = ""
-
-    def to_cosma_tags(self) -> list[str]:
-        """Render as a flat list for the Cosma YAML ``tags`` field.
-
-        Returns:
-            Ordered list of tag strings.
-        """
-        tags = [self.source, self.kind]
-        if self.org_repo:
-            tags.append(self.org_repo)
-        return tags
-
-    def to_logseq_tags(self) -> dict[str, str]:
-        """Render as Logseq page properties. Placeholder — TBD.
-
-        Returns:
-            Empty dict (not yet implemented).
-        """
-        return {}
 
     @classmethod
     def from_github_ref(cls, ref: GitHubRef) -> NoteTags:
@@ -504,39 +399,16 @@ class NoteHeader(BaseModel):
     author: str
     created: str
     wikilinks: list[str]
-    cosma_id: str = ""
-    tags: NoteTags | None = None
 
-    def to_string(self, fmt: Format, kind: FileKind) -> str:
-        """Render the header as a string for the given format and file kind.
+    def to_string(self, kind: FileKind) -> str:
+        """Render the header as a string for the given file kind.
 
         Args:
-            fmt: Output format.
             kind: Which file in the triplet (md, note, cursor).
 
         Returns:
             Rendered header string.
         """
-        if fmt == "cosma":
-            return self._to_cosma(kind)
-        return self._to_logseq(kind)
-
-    def _to_cosma(self, kind: FileKind) -> str:
-        title = self.title.replace('"', '\\"')
-        lines = [
-            "---",
-            f'title: "{title}"',
-            f"id: {self.cosma_id}",
-            f"type: {_COSMA_KIND_TYPE[kind]}",
-            f"author: {self.author}",
-        ]
-        if self.tags:
-            lines.append("tags:")
-            lines.extend(f"- {tag}" for tag in self.tags.to_cosma_tags())
-        lines.extend(["---", "", self.url, ""])
-        return "\n".join(lines)
-
-    def _to_logseq(self, kind: FileKind) -> str:
         lines = [f"# {self.title}", "", self.url, ""]
         if kind in ("md", "cursor"):
             meta_parts = []
@@ -561,9 +433,6 @@ class NoteHeader(BaseModel):
         content: NoteContent,
         paths: PathInfo,
         kind: FileKind,
-        *,
-        fmt: Format = "logseq",
-        tags: NoteTags | None = None,
     ) -> NoteHeader:
         """Build a ``NoteHeader`` from content and path info.
 
@@ -571,32 +440,10 @@ class NoteHeader(BaseModel):
             content: Fetched note content.
             paths: Computed path info.
             kind: Which file in the triplet.
-            fmt: Output format (determines wikilink style).
-            tags: Structured tags (required for cosma).
 
         Returns:
             Populated header.
         """
-        if fmt == "cosma":
-            link_targets = _COSMA_LINK_TARGETS[kind]
-            wikilinks = []
-            for target_kind in link_targets:
-                target_id = paths.cosma_ids[target_kind]
-                display = _COSMA_KIND_TYPE[target_kind]
-                link_type = _COSMA_LINK_TYPE[(kind, target_kind)]
-                wikilinks.append(f"{link_type}:{target_id}|{display}")
-            return cls(
-                title=content.title,
-                url=content.url,
-                note_type=content.note_type,
-                status=content.status,
-                author=content.author,
-                created=content.created,
-                wikilinks=wikilinks,
-                cosma_id=paths.cosma_ids[kind],
-                tags=tags,
-            )
-
         suffixes = _WIKILINKS_FOR_KIND[kind]
         wikilinks = []
         for suffix in suffixes:
@@ -634,37 +481,22 @@ class NoteBody(BaseModel):
     comments: list[Comment] = []
     sections: list[Section] = []
 
-    def to_string(self, fmt: Format, kind: FileKind) -> str:
-        """Render the body as a string for the given format and file kind.
+    def to_string(self, kind: FileKind) -> str:
+        """Render the body as a string for the given file kind.
 
         Args:
-            fmt: Output format.
             kind: Which file in the triplet (md, note, cursor).
 
         Returns:
             Rendered body string.
         """
-        if fmt == "cosma":
-            return self._to_cosma(kind)
-        return self._to_logseq(kind)
-
-    @staticmethod
-    def _strip_md_images(text: str) -> str:
-        """Convert ``![alt](url)`` to ``[alt](url)`` so Cosma won't resolve images."""
-        return re.sub(r"!\[([^\]]*)\]\(([^)]+)\)", r"[\1](\2)", text)
-
-    def _to_cosma(self, kind: FileKind) -> str:
-        """Cosma body — same as Logseq but with image syntax stripped."""
-        return self._strip_md_images(self._to_logseq(kind))
-
-    def _to_logseq(self, kind: FileKind) -> str:
         if kind == "md":
-            return self._to_logseq_md()
+            return self._to_md()
         if kind == "note":
-            return self._to_logseq_note()
-        return self._to_logseq_cursor()
+            return self._to_note()
+        return self._to_cursor()
 
-    def _to_logseq_md(self) -> str:
+    def _to_md(self) -> str:
         parts = ["## Description", "", self.description, "", "## Comments", ""]
         for comment in self.comments:
             parts.append(f"### @{comment.author} ({comment.date})")
@@ -674,14 +506,14 @@ class NoteBody(BaseModel):
             parts.extend(["", section.content, ""])
         return "\n".join(parts)
 
-    def _to_logseq_note(self) -> str:
+    def _to_note(self) -> str:
         parts: list[str] = []
         for section in self.sections:
             parts.append(f"## {section.heading}")
             parts.extend(["", section.content, ""] if section.content else [""])
         return "\n".join(parts)
 
-    def _to_logseq_cursor(self) -> str:
+    def _to_cursor(self) -> str:
         parts: list[str] = []
         for section in self.sections:
             parts.append(f"## {section.heading}")

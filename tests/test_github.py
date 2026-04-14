@@ -465,7 +465,7 @@ class TestFetchStripsCarriageReturns:
 
         content = fetch(pr_ref)
         dest = str(tmp_path / "out")
-        writer.write(content, pr_ref, dest, "logseq")
+        writer.write(content, pr_ref, dest)
 
         for path in tmp_path.rglob("*.md"):
             raw = path.read_bytes()
@@ -639,7 +639,9 @@ class TestFetchTodo:
         session = MagicMock()
         mock_build.return_value = session
         session.get.return_value = _mock_response(
-            {}, ok=False, status_code=401,
+            {},
+            ok=False,
+            status_code=401,
         )
 
         with pytest.raises(FetchError):

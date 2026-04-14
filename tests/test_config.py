@@ -10,7 +10,6 @@ from notegraph.cli import load_config
 class TestValidToml:
     def test_all_sections_parsed(self, sample_config_toml):
         cfg = load_config(sample_config_toml)
-        assert cfg.type == "logseq"
         assert cfg.jira.endpoint == "test.atlassian.net"
         assert cfg.jira.email == "dev@example.com"
         assert cfg.jira.token == "jira-secret"
@@ -21,30 +20,20 @@ class TestValidToml:
         cfg = load_config(sample_config_toml)
         assert "logseq_pages" in cfg.logseq.graph_dir
 
-    def test_cosma_data_dir(self, sample_config_toml):
-        cfg = load_config(sample_config_toml)
-        assert "cosma_data" in cfg.cosma.data_dir
-
 
 class TestPartialToml:
     def test_missing_jira_section(self, tmp_path):
         cfg_path = tmp_path / "partial.toml"
-        cfg_path.write_text('type = "logseq"\n', encoding="utf-8")
+        cfg_path.write_text("", encoding="utf-8")
         cfg = load_config(cfg_path)
         assert cfg.jira.endpoint == ""
         assert cfg.jira.token == ""
 
     def test_missing_github_section(self, tmp_path):
         cfg_path = tmp_path / "partial.toml"
-        cfg_path.write_text('type = "logseq"\n', encoding="utf-8")
+        cfg_path.write_text("", encoding="utf-8")
         cfg = load_config(cfg_path)
         assert cfg.github.token == ""
-
-    def test_missing_type_uses_default(self, tmp_path):
-        cfg_path = tmp_path / "partial.toml"
-        cfg_path.write_text('[jira]\nendpoint = "x"\n', encoding="utf-8")
-        cfg = load_config(cfg_path)
-        assert cfg.type == "logseq"
 
 
 class TestEmptyConfig:
@@ -52,13 +41,11 @@ class TestEmptyConfig:
         cfg_path = tmp_path / "empty.toml"
         cfg_path.write_text("", encoding="utf-8")
         cfg = load_config(cfg_path)
-        assert cfg.type == "logseq"
         assert cfg.jira.endpoint == ""
 
     def test_missing_file_uses_defaults(self, tmp_path):
         cfg_path = tmp_path / "nonexistent.toml"
         cfg = load_config(cfg_path)
-        assert cfg.type == "logseq"
         assert cfg.jira.endpoint == ""
         assert cfg.github.token == ""
 
@@ -67,20 +54,6 @@ class TestDestDir:
     def test_logseq_dest_dir(self, sample_config_toml):
         cfg = load_config(sample_config_toml)
         assert "logseq_pages" in cfg.dest_dir
-
-    def test_cosma_dest_dir(self, sample_config_toml):
-        cfg = load_config(sample_config_toml, type_override="cosma")
-        assert "cosma_data" in cfg.dest_dir
-
-
-class TestTypeOverride:
-    def test_override_type(self, sample_config_toml):
-        cfg = load_config(sample_config_toml, type_override="cosma")
-        assert cfg.type == "cosma"
-
-    def test_override_none_keeps_file_value(self, sample_config_toml):
-        cfg = load_config(sample_config_toml, type_override=None)
-        assert cfg.type == "logseq"
 
 
 class TestEnvVarOverrides:

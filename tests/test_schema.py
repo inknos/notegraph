@@ -186,45 +186,35 @@ class TestNoteTriplet:
 
 class TestPathInfoFromGithub:
     def test_logseq_paths(self, sample_github_ref):
-        pi = PathInfo.from_github(sample_github_ref, "/dest", "logseq")
+        pi = PathInfo.from_github(sample_github_ref, "/dest")
         assert pi.file_prefix == "/dest/github.com___containers___podman___pull___24126"
         assert pi.file_sep == "___"
         assert pi.wikilink_prefix == "github.com/containers/podman/pull/24126"
         assert pi.wikilink_sep == "/"
 
     def test_derived_md_path(self, sample_github_ref):
-        pi = PathInfo.from_github(sample_github_ref, "/d", "logseq")
+        pi = PathInfo.from_github(sample_github_ref, "/d")
         assert pi.md_path == "/d/github.com___containers___podman___pull___24126.md"
 
     def test_derived_note_path(self, sample_github_ref):
-        pi = PathInfo.from_github(sample_github_ref, "/d", "logseq")
+        pi = PathInfo.from_github(sample_github_ref, "/d")
         assert pi.note_path == "/d/github.com___containers___podman___pull___24126___note.md"
 
     def test_derived_cursor_path(self, sample_github_ref):
-        pi = PathInfo.from_github(sample_github_ref, "/d", "logseq")
+        pi = PathInfo.from_github(sample_github_ref, "/d")
         assert pi.cursor_path == "/d/github.com___containers___podman___pull___24126___cursor.md"
 
     def test_wikilinks(self, sample_github_ref):
-        pi = PathInfo.from_github(sample_github_ref, "/d", "logseq")
+        pi = PathInfo.from_github(sample_github_ref, "/d")
         assert pi.wikilink == "github.com/containers/podman/pull/24126"
         assert pi.wikilink_note == "github.com/containers/podman/pull/24126/note"
         assert pi.wikilink_cursor == "github.com/containers/podman/pull/24126/cursor"
 
     def test_path_for(self, sample_github_ref):
-        pi = PathInfo.from_github(sample_github_ref, "/d", "logseq")
+        pi = PathInfo.from_github(sample_github_ref, "/d")
         assert pi.path_for("md") == pi.md_path
         assert pi.path_for("note") == pi.note_path
         assert pi.path_for("cursor") == pi.cursor_path
-
-    def test_cosma_paths(self, sample_github_ref):
-        pi = PathInfo.from_github(sample_github_ref, "/d", "cosma")
-        assert pi.file_prefix == "/d/github-containers-podman-pull-24126"
-        assert pi.file_sep == "-"
-        assert pi.md_path == "/d/github-containers-podman-pull-24126.md"
-        assert pi.note_path == "/d/github-containers-podman-pull-24126-note.md"
-        assert pi.cursor_path == "/d/github-containers-podman-pull-24126-cursor.md"
-        assert len(pi.cosma_ids) == 3
-        assert all(len(v) == 14 and v.isdigit() for v in pi.cosma_ids.values())
 
 
 # ===================================================================
@@ -234,37 +224,27 @@ class TestPathInfoFromGithub:
 
 class TestPathInfoFromJira:
     def test_logseq_paths(self, sample_jira_ref):
-        pi = PathInfo.from_jira(sample_jira_ref, "/dest", "logseq")
+        pi = PathInfo.from_jira(sample_jira_ref, "/dest")
         assert pi.file_prefix == "/dest/test.atlassian.net___RUN-3555"
         assert pi.file_sep == "___"
 
     def test_wikilinks(self, sample_jira_ref):
-        pi = PathInfo.from_jira(sample_jira_ref, "/dest", "logseq")
+        pi = PathInfo.from_jira(sample_jira_ref, "/dest")
         assert pi.wikilink == "test.atlassian.net/RUN-3555"
         assert pi.wikilink_note == "test.atlassian.net/RUN-3555/note"
         assert pi.wikilink_cursor == "test.atlassian.net/RUN-3555/cursor"
 
     def test_md_path(self, sample_jira_ref):
-        pi = PathInfo.from_jira(sample_jira_ref, "/dest", "logseq")
+        pi = PathInfo.from_jira(sample_jira_ref, "/dest")
         assert pi.md_path == "/dest/test.atlassian.net___RUN-3555.md"
 
     def test_note_path(self, sample_jira_ref):
-        pi = PathInfo.from_jira(sample_jira_ref, "/dest", "logseq")
+        pi = PathInfo.from_jira(sample_jira_ref, "/dest")
         assert pi.note_path == "/dest/test.atlassian.net___RUN-3555___note.md"
 
     def test_cursor_path(self, sample_jira_ref):
-        pi = PathInfo.from_jira(sample_jira_ref, "/dest", "logseq")
+        pi = PathInfo.from_jira(sample_jira_ref, "/dest")
         assert pi.cursor_path == "/dest/test.atlassian.net___RUN-3555___cursor.md"
-
-    def test_cosma_paths(self, sample_jira_ref):
-        pi = PathInfo.from_jira(sample_jira_ref, "/d", "cosma")
-        assert pi.file_prefix == "/d/jira-RUN-3555"
-        assert pi.file_sep == "-"
-        assert pi.md_path == "/d/jira-RUN-3555.md"
-        assert pi.note_path == "/d/jira-RUN-3555-note.md"
-        assert pi.cursor_path == "/d/jira-RUN-3555-cursor.md"
-        assert len(pi.cosma_ids) == 3
-        assert all(len(v) == 14 and v.isdigit() for v in pi.cosma_ids.values())
 
 
 # ===================================================================
@@ -274,11 +254,11 @@ class TestPathInfoFromJira:
 
 class TestPathInfoFromRef:
     def test_dispatches_to_github(self, sample_github_ref):
-        pi = PathInfo.from_ref(sample_github_ref, "/d", "logseq")
+        pi = PathInfo.from_ref(sample_github_ref, "/d")
         assert "github.com" in pi.file_prefix
 
     def test_dispatches_to_jira(self, sample_jira_ref):
-        pi = PathInfo.from_ref(sample_jira_ref, "/d", "logseq")
+        pi = PathInfo.from_ref(sample_jira_ref, "/d")
         assert "test.atlassian.net" in pi.file_prefix
 
 
@@ -289,14 +269,14 @@ class TestPathInfoFromRef:
 
 class TestPathInfoToTriplet:
     def test_no_files_exist(self, tmp_dest_dir, sample_github_ref):
-        pi = PathInfo.from_github(sample_github_ref, str(tmp_dest_dir), "logseq")
+        pi = PathInfo.from_github(sample_github_ref, str(tmp_dest_dir))
         triplet = pi.to_triplet()
         assert triplet.md.exists is False
         assert triplet.note.exists is False
         assert triplet.cursor.exists is False
 
     def test_all_files_exist(self, tmp_dest_dir, sample_github_ref):
-        pi = PathInfo.from_github(sample_github_ref, str(tmp_dest_dir), "logseq")
+        pi = PathInfo.from_github(sample_github_ref, str(tmp_dest_dir))
         for path in (pi.md_path, pi.note_path, pi.cursor_path):
             Path(path).write_text("content", encoding="utf-8")
 
@@ -306,7 +286,7 @@ class TestPathInfoToTriplet:
         assert triplet.cursor.exists is True
 
     def test_partial_existence(self, tmp_dest_dir, sample_github_ref):
-        pi = PathInfo.from_github(sample_github_ref, str(tmp_dest_dir), "logseq")
+        pi = PathInfo.from_github(sample_github_ref, str(tmp_dest_dir))
         Path(pi.md_path).write_text("x", encoding="utf-8")
 
         triplet = pi.to_triplet()
@@ -315,7 +295,7 @@ class TestPathInfoToTriplet:
         assert triplet.cursor.exists is False
 
     def test_paths_in_triplet_match(self, tmp_dest_dir, sample_github_ref):
-        pi = PathInfo.from_github(sample_github_ref, str(tmp_dest_dir), "logseq")
+        pi = PathInfo.from_github(sample_github_ref, str(tmp_dest_dir))
         triplet = pi.to_triplet()
         assert triplet.md.path == pi.md_path
         assert triplet.note.path == pi.note_path
@@ -371,67 +351,46 @@ class TestComment:
 
 class TestNoteHeader:
     def test_from_content_md(self, sample_note_content, sample_github_ref):
-        paths = PathInfo.from_github(sample_github_ref, "/d", "logseq")
+        paths = PathInfo.from_github(sample_github_ref, "/d")
         header = NoteHeader.from_content(sample_note_content, paths, "md")
         assert header.title == sample_note_content.title
         assert "cursor" in header.wikilinks[0]
         assert "note" in header.wikilinks[1]
 
     def test_from_content_note(self, sample_note_content, sample_github_ref):
-        paths = PathInfo.from_github(sample_github_ref, "/d", "logseq")
+        paths = PathInfo.from_github(sample_github_ref, "/d")
         header = NoteHeader.from_content(sample_note_content, paths, "note")
         assert "cursor" in header.wikilinks[0]
         assert header.wikilinks[1] == paths.wikilink
 
     def test_from_content_cursor(self, sample_note_content, sample_github_ref):
-        paths = PathInfo.from_github(sample_github_ref, "/d", "logseq")
+        paths = PathInfo.from_github(sample_github_ref, "/d")
         header = NoteHeader.from_content(sample_note_content, paths, "cursor")
         assert header.wikilinks[0] == paths.wikilink
         assert "note" in header.wikilinks[1]
 
-    def test_to_string_logseq_cursor(self, sample_note_content, sample_github_ref):
-        paths = PathInfo.from_github(sample_github_ref, "/d", "logseq")
+    def test_to_string_cursor(self, sample_note_content, sample_github_ref):
+        paths = PathInfo.from_github(sample_github_ref, "/d")
         header = NoteHeader.from_content(sample_note_content, paths, "cursor")
-        rendered = header.to_string("logseq", "cursor")
+        rendered = header.to_string("cursor")
         assert rendered.startswith("# Fix container networking regression")
         assert "**Type:** pull_request" in rendered
         assert "**Status:** open" in rendered
         assert "**Author:** developer" in rendered
         assert "**Created:** 2024-03-15" in rendered
 
-    def test_to_string_logseq_md(self, sample_note_content, sample_github_ref):
-        paths = PathInfo.from_github(sample_github_ref, "/d", "logseq")
+    def test_to_string_md(self, sample_note_content, sample_github_ref):
+        paths = PathInfo.from_github(sample_github_ref, "/d")
         header = NoteHeader.from_content(sample_note_content, paths, "md")
-        rendered = header.to_string("logseq", "md")
+        rendered = header.to_string("md")
         assert "# Fix container networking regression" in rendered
         assert sample_note_content.url in rendered
 
-    def test_to_string_logseq_note(self, sample_note_content, sample_github_ref):
-        paths = PathInfo.from_github(sample_github_ref, "/d", "logseq")
+    def test_to_string_note(self, sample_note_content, sample_github_ref):
+        paths = PathInfo.from_github(sample_github_ref, "/d")
         header = NoteHeader.from_content(sample_note_content, paths, "note")
-        rendered = header.to_string("logseq", "note")
+        rendered = header.to_string("note")
         assert "# Fix container networking regression" in rendered
-
-    def test_to_string_cosma_md(self, sample_note_content, sample_github_ref):
-        paths = PathInfo.from_github(sample_github_ref, "/d", "cosma")
-        tags = NoteTags.from_github_ref(sample_github_ref)
-        header = NoteHeader.from_content(
-            sample_note_content,
-            paths,
-            "md",
-            fmt="cosma",
-            tags=tags,
-        )
-        rendered = header.to_string("cosma", "md")
-        assert rendered.startswith("---\n")
-        assert 'title: "Fix container networking regression"' in rendered
-        assert f"id: {paths.cosma_ids['md']}" in rendered
-        assert "type: summary" in rendered
-        assert "author: developer" in rendered
-        assert "- github" in rendered
-        assert "- pull_request" in rendered
-        assert "- containers/podman" in rendered
-        assert "---" in rendered.split("\n", 1)[1]
 
 
 # ===================================================================
@@ -456,9 +415,9 @@ class TestNoteBody:
         headings = [s.heading for s in body.sections]
         assert headings == ["Analysis", "TODOs"]
 
-    def test_to_string_logseq_md(self, sample_note_content):
+    def test_to_string_md(self, sample_note_content):
         body = NoteBody.from_content(sample_note_content, "md")
-        rendered = body.to_string("logseq", "md")
+        rendered = body.to_string("md")
         assert "## Description" in rendered
         assert "## Comments" in rendered
         assert "### @reviewer1 (2024-03-16)" in rendered
@@ -467,20 +426,20 @@ class TestNoteBody:
         assert "## Key Discussion Points" in rendered
         assert "<!-- summarize the above comments here -->" in rendered
 
-    def test_to_string_logseq_note(self, sample_note_content):
+    def test_to_string_note(self, sample_note_content):
         body = NoteBody.from_content(sample_note_content, "note")
-        rendered = body.to_string("logseq", "note")
+        rendered = body.to_string("note")
         assert "## Notes" in rendered
         assert "## TODOs" in rendered
         assert "## Related" in rendered
 
-    def test_to_string_logseq_cursor(self, sample_note_content):
+    def test_to_string_cursor(self, sample_note_content):
         body = NoteBody.from_content(sample_note_content, "cursor")
-        rendered = body.to_string("logseq", "cursor")
+        rendered = body.to_string("cursor")
         assert "## Analysis" in rendered
         assert "## TODOs" in rendered
 
-    def test_to_string_logseq_md_no_comments(self):
+    def test_to_string_md_no_comments(self):
         content = NoteContent(
             title="t",
             url="u",
@@ -491,15 +450,9 @@ class TestNoteBody:
             description="desc",
         )
         body = NoteBody.from_content(content, "md")
-        rendered = body.to_string("logseq", "md")
+        rendered = body.to_string("md")
         assert "## Comments" in rendered
         assert "###" not in rendered
-
-    def test_to_string_cosma_md(self, sample_note_content):
-        body = NoteBody.from_content(sample_note_content, "md")
-        rendered = body.to_string("cosma", "md")
-        assert "## Description" in rendered
-        assert "## Comments" in rendered
 
 
 # ===================================================================
@@ -554,342 +507,3 @@ class TestNoteTags:
         )
         tags = NoteTags.from_jira_content(content)
         assert tags.kind == "story"
-
-    def test_to_cosma_tags_github(self, sample_github_ref):
-        tags = NoteTags.from_github_ref(sample_github_ref)
-        assert tags.to_cosma_tags() == ["github", "pull_request", "containers/podman"]
-
-    def test_to_cosma_tags_jira(self, sample_jira_content):
-        tags = NoteTags.from_jira_content(sample_jira_content)
-        assert tags.to_cosma_tags() == ["jira", "issue"]
-
-    def test_to_logseq_tags_placeholder(self, sample_github_ref):
-        tags = NoteTags.from_github_ref(sample_github_ref)
-        assert tags.to_logseq_tags() == {}
-
-
-# ===================================================================
-# Cosma ID generation
-# ===================================================================
-
-
-class TestCosmaId:
-    def test_deterministic(self, sample_github_ref):
-        pi1 = PathInfo.from_github(sample_github_ref, "/d", "cosma")
-        pi2 = PathInfo.from_github(sample_github_ref, "/d", "cosma")
-        assert pi1.cosma_ids == pi2.cosma_ids
-
-    def test_different_per_kind(self, sample_github_ref):
-        pi = PathInfo.from_github(sample_github_ref, "/d", "cosma")
-        ids = set(pi.cosma_ids.values())
-        assert len(ids) == 3
-
-    def test_fourteen_digits(self, sample_github_ref):
-        pi = PathInfo.from_github(sample_github_ref, "/d", "cosma")
-        for v in pi.cosma_ids.values():
-            assert len(v) == 14
-            assert v.isdigit()
-
-    def test_different_refs_different_ids(self, sample_github_ref, sample_jira_ref):
-        pi_gh = PathInfo.from_github(sample_github_ref, "/d", "cosma")
-        pi_jira = PathInfo.from_jira(sample_jira_ref, "/d", "cosma")
-        assert pi_gh.cosma_ids["md"] != pi_jira.cosma_ids["md"]
-
-    def test_dest_dir_does_not_affect_ids(self, sample_github_ref):
-        pi1 = PathInfo.from_github(sample_github_ref, "/dir1", "cosma")
-        pi2 = PathInfo.from_github(sample_github_ref, "/dir2", "cosma")
-        assert pi1.cosma_ids == pi2.cosma_ids
-
-
-# ===================================================================
-# PathInfo — Cosma GitHub
-# ===================================================================
-
-
-class TestPathInfoCosmaGithub:
-    def test_file_prefix(self, sample_github_ref):
-        pi = PathInfo.from_github(sample_github_ref, "/data", "cosma")
-        assert pi.file_prefix == "/data/github-containers-podman-pull-24126"
-
-    def test_flat_naming(self, sample_github_ref):
-        pi = PathInfo.from_github(sample_github_ref, "/data", "cosma")
-        assert "/" not in pi.md_path.removeprefix("/data/")
-        assert "/" not in pi.note_path.removeprefix("/data/")
-        assert "/" not in pi.cursor_path.removeprefix("/data/")
-
-    def test_file_sep(self, sample_github_ref):
-        pi = PathInfo.from_github(sample_github_ref, "/d", "cosma")
-        assert pi.file_sep == "-"
-
-    def test_md_path(self, sample_github_ref):
-        pi = PathInfo.from_github(sample_github_ref, "/d", "cosma")
-        assert pi.md_path.endswith(".md")
-        assert "note" not in pi.md_path
-        assert "cursor" not in pi.md_path
-
-    def test_note_path(self, sample_github_ref):
-        pi = PathInfo.from_github(sample_github_ref, "/d", "cosma")
-        assert pi.note_path.endswith("-note.md")
-
-    def test_cursor_path(self, sample_github_ref):
-        pi = PathInfo.from_github(sample_github_ref, "/d", "cosma")
-        assert pi.cursor_path.endswith("-cursor.md")
-
-    def test_cosma_ids_populated(self, sample_github_ref):
-        pi = PathInfo.from_github(sample_github_ref, "/d", "cosma")
-        assert set(pi.cosma_ids.keys()) == {"md", "note", "cursor"}
-
-    def test_path_for(self, sample_github_ref):
-        pi = PathInfo.from_github(sample_github_ref, "/d", "cosma")
-        assert pi.path_for("md") == pi.md_path
-        assert pi.path_for("note") == pi.note_path
-        assert pi.path_for("cursor") == pi.cursor_path
-
-    def test_to_triplet(self, tmp_dest_dir, sample_github_ref):
-        pi = PathInfo.from_github(sample_github_ref, str(tmp_dest_dir), "cosma")
-        triplet = pi.to_triplet()
-        assert triplet.md.exists is False
-        assert triplet.md.path == pi.md_path
-
-    def test_issue_slug(self):
-        ref = GitHubRef(org="org", repo="repo", url_type="issues", number=42)
-        pi = PathInfo.from_github(ref, "/d", "cosma")
-        assert pi.file_prefix == "/d/github-org-repo-issues-42"
-
-
-# ===================================================================
-# PathInfo — Cosma Jira
-# ===================================================================
-
-
-class TestPathInfoCosmaJira:
-    def test_file_prefix(self, sample_jira_ref):
-        pi = PathInfo.from_jira(sample_jira_ref, "/data", "cosma")
-        assert pi.file_prefix == "/data/jira-RUN-3555"
-
-    def test_all_paths(self, sample_jira_ref):
-        pi = PathInfo.from_jira(sample_jira_ref, "/d", "cosma")
-        assert pi.md_path == "/d/jira-RUN-3555.md"
-        assert pi.note_path == "/d/jira-RUN-3555-note.md"
-        assert pi.cursor_path == "/d/jira-RUN-3555-cursor.md"
-
-    def test_cosma_ids_populated(self, sample_jira_ref):
-        pi = PathInfo.from_jira(sample_jira_ref, "/d", "cosma")
-        assert set(pi.cosma_ids.keys()) == {"md", "note", "cursor"}
-
-
-# ===================================================================
-# NoteHeader — Cosma rendering
-# ===================================================================
-
-
-class TestNoteHeaderCosma:
-    def _make_header(self, content, ref, kind="md"):
-        paths = PathInfo.from_github(ref, "/d", "cosma")
-        tags = NoteTags.from_github_ref(ref)
-        return NoteHeader.from_content(content, paths, kind, fmt="cosma", tags=tags), paths
-
-    def test_yaml_front_matter_structure(self, sample_note_content, sample_github_ref):
-        header, _paths = self._make_header(sample_note_content, sample_github_ref)
-        rendered = header.to_string("cosma", "md")
-        lines = rendered.split("\n")
-        assert lines[0] == "---"
-        closing_idx = lines.index("---", 1)
-        assert closing_idx > 1
-
-    def test_title_in_front_matter(self, sample_note_content, sample_github_ref):
-        header, _ = self._make_header(sample_note_content, sample_github_ref)
-        rendered = header.to_string("cosma", "md")
-        assert 'title: "Fix container networking regression"' in rendered
-
-    def test_title_with_quotes(self, sample_github_ref):
-        content = NoteContent(
-            title='Fix "broken" networking',
-            url="u",
-            source="github",
-            status="open",
-            author="a",
-            created="d",
-            description="d",
-            note_type="pull_request",
-        )
-        header, _ = self._make_header(content, sample_github_ref)
-        rendered = header.to_string("cosma", "md")
-        assert 'title: "Fix \\"broken\\" networking"' in rendered
-
-    def test_id_in_front_matter(self, sample_note_content, sample_github_ref):
-        header, paths = self._make_header(sample_note_content, sample_github_ref)
-        rendered = header.to_string("cosma", "md")
-        assert f"id: {paths.cosma_ids['md']}" in rendered
-
-    def test_type_summary_for_md(self, sample_note_content, sample_github_ref):
-        header, _ = self._make_header(sample_note_content, sample_github_ref, "md")
-        assert "type: summary" in header.to_string("cosma", "md")
-
-    def test_type_notes_for_note(self, sample_note_content, sample_github_ref):
-        header, _ = self._make_header(sample_note_content, sample_github_ref, "note")
-        assert "type: notes" in header.to_string("cosma", "note")
-
-    def test_type_analysis_for_cursor(self, sample_note_content, sample_github_ref):
-        header, _ = self._make_header(sample_note_content, sample_github_ref, "cursor")
-        assert "type: analysis" in header.to_string("cosma", "cursor")
-
-    def test_author_in_front_matter(self, sample_note_content, sample_github_ref):
-        header, _ = self._make_header(sample_note_content, sample_github_ref)
-        assert "author: developer" in header.to_string("cosma", "md")
-
-    def test_tags_in_front_matter(self, sample_note_content, sample_github_ref):
-        header, _ = self._make_header(sample_note_content, sample_github_ref)
-        rendered = header.to_string("cosma", "md")
-        assert "tags:" in rendered
-        assert "- github" in rendered
-        assert "- pull_request" in rendered
-        assert "- containers/podman" in rendered
-
-    def test_url_after_front_matter(self, sample_note_content, sample_github_ref):
-        header, _ = self._make_header(sample_note_content, sample_github_ref)
-        rendered = header.to_string("cosma", "md")
-        parts = rendered.split("---")
-        after_fm = parts[2]
-        assert sample_note_content.url in after_fm
-
-    def test_wikilinks_use_cosma_ids(self, sample_note_content, sample_github_ref):
-        header, paths = self._make_header(sample_note_content, sample_github_ref, "md")
-        assert any(paths.cosma_ids["cursor"] in wl for wl in header.wikilinks)
-        assert any(paths.cosma_ids["note"] in wl for wl in header.wikilinks)
-
-    def test_wikilinks_contain_display_text(self, sample_note_content, sample_github_ref):
-        header, _ = self._make_header(sample_note_content, sample_github_ref, "md")
-        displays = [wl.split("|")[1] for wl in header.wikilinks]
-        assert "analysis" in displays
-        assert "notes" in displays
-
-    def test_wikilinks_have_typed_prefix(self, sample_note_content, sample_github_ref):
-        for kind, expected_types in [
-            ("md", ["with_analysis", "with_notes"]),
-            ("note", ["with_complementary_analysis", "annotates_summary"]),
-            ("cursor", ["analyzes_summary", "with_complementary_notes"]),
-        ]:
-            header, _ = self._make_header(
-                sample_note_content, sample_github_ref, kind,
-            )
-            prefixes = [wl.split(":")[0] for wl in header.wikilinks]
-            assert prefixes == expected_types
-
-    def test_jira_tags(self, sample_jira_content, sample_jira_ref):
-        paths = PathInfo.from_jira(sample_jira_ref, "/d", "cosma")
-        tags = NoteTags.from_jira_content(sample_jira_content)
-        header = NoteHeader.from_content(
-            sample_jira_content,
-            paths,
-            "md",
-            fmt="cosma",
-            tags=tags,
-        )
-        rendered = header.to_string("cosma", "md")
-        assert "- jira" in rendered
-        assert "- issue" in rendered
-        assert "containers" not in rendered
-
-
-# ===================================================================
-# NoteBody — Cosma rendering
-# ===================================================================
-
-
-class TestNoteBodyCosma:
-    def test_md_body_has_description(self, sample_note_content):
-        body = NoteBody.from_content(sample_note_content, "md")
-        rendered = body.to_string("cosma", "md")
-        assert "## Description" in rendered
-        assert "networking regression" in rendered
-
-    def test_md_body_has_comments(self, sample_note_content):
-        body = NoteBody.from_content(sample_note_content, "md")
-        rendered = body.to_string("cosma", "md")
-        assert "### @reviewer1 (2024-03-16)" in rendered
-
-    def test_note_body_has_skeleton(self, sample_note_content):
-        body = NoteBody.from_content(sample_note_content, "note")
-        rendered = body.to_string("cosma", "note")
-        assert "## Notes" in rendered
-        assert "## TODOs" in rendered
-        assert "## Related" in rendered
-
-    def test_cursor_body_has_skeleton(self, sample_note_content):
-        body = NoteBody.from_content(sample_note_content, "cursor")
-        rendered = body.to_string("cosma", "cursor")
-        assert "## Analysis" in rendered
-        assert "## TODOs" in rendered
-
-
-class TestNoteBodyCosmaImageStripping:
-    """Cosma output must convert ![alt](url) to [alt](url)."""
-
-    def test_images_stripped_from_description(self):
-        content = NoteContent(
-            source="github",
-            title="t",
-            url="https://github.com/o/r/issues/1",
-            status="open",
-            author="a",
-            created="2024-01-01",
-            description="See ![screenshot](https://example.com/img.png) here",
-            comments=[],
-        )
-        body = NoteBody.from_content(content, "md")
-        rendered = body.to_string("cosma", "md")
-        assert "![screenshot]" not in rendered
-        assert "[screenshot](https://example.com/img.png)" in rendered
-
-    def test_images_stripped_from_comments(self):
-        content = NoteContent(
-            source="github",
-            title="t",
-            url="https://github.com/o/r/issues/1",
-            status="open",
-            author="a",
-            created="2024-01-01",
-            description="desc",
-            comments=[
-                Comment(
-                    author="u",
-                    date="2024-01-02",
-                    body="![img](https://example.com/a.jpg)",
-                ),
-            ],
-        )
-        body = NoteBody.from_content(content, "md")
-        rendered = body.to_string("cosma", "md")
-        assert "![img]" not in rendered
-        assert "[img](https://example.com/a.jpg)" in rendered
-
-    def test_multiple_images_stripped(self):
-        body = NoteBody(
-            description="![a](u1) text ![b](u2)",
-            comments=[],
-            sections=[],
-        )
-        rendered = body.to_string("cosma", "md")
-        assert "![" not in rendered
-        assert "[a](u1)" in rendered
-        assert "[b](u2)" in rendered
-
-    def test_logseq_preserves_images(self):
-        body = NoteBody(
-            description="![screenshot](https://example.com/img.png)",
-            comments=[],
-            sections=[],
-        )
-        rendered = body.to_string("logseq", "md")
-        assert "![screenshot](https://example.com/img.png)" in rendered
-
-    def test_empty_alt_text(self):
-        body = NoteBody(
-            description="![](https://example.com/img.png)",
-            comments=[],
-            sections=[],
-        )
-        rendered = body.to_string("cosma", "md")
-        assert "![" not in rendered
-        assert "[](https://example.com/img.png)" in rendered

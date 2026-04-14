@@ -14,13 +14,11 @@ from pathlib import Path
 
 from notegraph.schema import (
     FileKind,
-    Format,
     GitHubRef,
     JiraRef,
     NoteBody,
     NoteContent,
     NoteHeader,
-    NoteTags,
     NoteTriplet,
     PathInfo,
     RenderedNote,
@@ -34,19 +32,17 @@ _ALL_KINDS: tuple[FileKind, ...] = ("md", "note", "cursor")
 def check(
     ref: GitHubRef | JiraRef,
     dest_dir: str,
-    fmt: Format,
 ) -> NoteTriplet:
     """Compute paths and check file existence without network calls.
 
     Args:
         ref: A GitHub or Jira reference.
         dest_dir: Output directory.
-        fmt: Output format.
 
     Returns:
         A ``NoteTriplet`` with paths and existence flags.
     """
-    paths = PathInfo.from_ref(ref, dest_dir, fmt)
+    paths = PathInfo.from_ref(ref, dest_dir)
     return paths.to_triplet()
 
 
@@ -54,7 +50,6 @@ def render(
     content: NoteContent,
     ref: GitHubRef | JiraRef,
     dest_dir: str,
-    fmt: Format,
     *,
     kinds: tuple[FileKind, ...] = _ALL_KINDS,
 ) -> dict[str, RenderedNote]:
@@ -67,37 +62,28 @@ def render(
         content: Fetched note content.
         ref: A GitHub or Jira reference.
         dest_dir: Output directory (used for path computation only).
-        fmt: Output format.
         kinds: Which file kinds to render.  Defaults to all three.
 
     Returns:
         Dict mapping file kind (``"md"``, ``"note"``, ``"cursor"``) to a
         ``RenderedNote`` containing the target path and full file content.
     """
-    paths = PathInfo.from_ref(ref, dest_dir, fmt)
-
-    tags: NoteTags | None = None
-    if fmt == "cosma":
-        if isinstance(ref, GitHubRef):
-            tags = NoteTags.from_github_ref(ref)
-        else:
-            tags = NoteTags.from_jira_content(content)
+    paths = PathInfo.from_ref(ref, dest_dir)
 
     result: dict[str, RenderedNote] = {}
     for kind in kinds:
-        header = NoteHeader.from_content(content, paths, kind, fmt=fmt, tags=tags)
+        header = NoteHeader.from_content(content, paths, kind)
         body = NoteBody.from_content(content, kind)
-        text = _assemble(header, body, fmt, kind)
+        text = _assemble(header, body, kind)
         result[kind] = RenderedNote(path=paths.path_for(kind), content=text)
 
     return result
 
 
-def write(  # noqa: PLR0913
+def write(
     content: NoteContent,
     ref: GitHubRef | JiraRef,
     dest_dir: str,
-    fmt: Format,
     *,
     kinds: tuple[FileKind, ...] = _ALL_KINDS,
     replace: bool = False,
@@ -115,11 +101,10 @@ def write(  # noqa: PLR0913
         content: Fetched note content.
         ref: A GitHub or Jira reference.
         dest_dir: Output directory.
-        fmt: Output format.
         kinds: Which file kinds to write.  Defaults to all three.
         replace: If ``True``, overwrite existing note/cursor files.
     """
-    rendered = render(content, ref, dest_dir, fmt, kinds=kinds)
+    rendered = render(content, ref, dest_dir, kinds=kinds)
     Path(dest_dir).mkdir(parents=True, exist_ok=True)
 
     for kind, note in rendered.items():
@@ -137,7 +122,6 @@ def write(  # noqa: PLR0913
 def _assemble(
     header: NoteHeader,
     body: NoteBody,
-    fmt: Format,
     kind: FileKind,
 ) -> str:
     """Combine header, body, and footer wikilinks into a full file.
@@ -145,14 +129,13 @@ def _assemble(
     Args:
         header: Rendered header model.
         body: Rendered body model.
-        fmt: Output format.
         kind: Which file in the triplet.
 
     Returns:
         Complete file content as a string.
     """
-    header_str = header.to_string(fmt, kind)
-    body_str = body.to_string(fmt, kind)
+    header_str = header.to_string(kind)
+    body_str = body.to_string(kind)
     footer = _footer(header, kind)
     return f"{header_str}{body_str}{footer}"
 

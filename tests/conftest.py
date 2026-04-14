@@ -17,8 +17,6 @@ from notegraph.schema import (
 )
 
 SAMPLE_TOML = """\
-type = "logseq"
-
 [jira]
 endpoint = "test.atlassian.net"
 email = "dev@example.com"
@@ -30,9 +28,6 @@ token = "gh-secret"
 
 [logseq]
 graph_dir = "{graph_dir}"
-
-[cosma]
-data_dir = "{cosma_dir}"
 """
 
 
@@ -99,10 +94,8 @@ def sample_config_toml(tmp_path: Path) -> Path:
     config_path = tmp_path / "notegraph.toml"
     graph_dir = tmp_path / "logseq_pages"
     graph_dir.mkdir()
-    cosma_dir = tmp_path / "cosma_data"
-    cosma_dir.mkdir()
     config_path.write_text(
-        SAMPLE_TOML.format(graph_dir=graph_dir, cosma_dir=cosma_dir),
+        SAMPLE_TOML.format(graph_dir=graph_dir),
         encoding="utf-8",
     )
     return config_path

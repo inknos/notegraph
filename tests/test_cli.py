@@ -97,7 +97,7 @@ class TestGitHubCheck:
             .strip()
             .strip('"')
         )
-        pi = PathInfo.from_github(ref, cfg_graph_dir, "logseq")
+        pi = PathInfo.from_github(ref, cfg_graph_dir)
         assert pi.md_path in stdout
         assert pi.note_path in stdout
         assert pi.cursor_path in stdout
@@ -137,37 +137,6 @@ class TestJiraCheck:
         )
         assert exit_code == 0
         assert "RUN-100" in stdout
-
-
-class TestTypeFlag:
-    def test_type_logseq(self, sample_config_toml):
-        url = "https://github.com/o/r/pull/1"
-        exit_code, stdout, _ = run_cli(
-            "--config",
-            str(sample_config_toml),
-            "--type",
-            "logseq",
-            "github",
-            "--check",
-            url,
-        )
-        assert exit_code == 0
-        assert "logseq_pages" in stdout
-
-    def test_type_cosma_check(self, sample_config_toml):
-        url = "https://github.com/o/r/pull/1"
-        exit_code, stdout, _ = run_cli(
-            "--config",
-            str(sample_config_toml),
-            "--type",
-            "cosma",
-            "github",
-            "--check",
-            url,
-        )
-        assert exit_code == 0
-        assert "cosma_data" in stdout
-        assert "github-o-r-pull-1" in stdout
 
 
 class TestDestDirOverride:
@@ -211,20 +180,6 @@ class TestConfigFlag:
             url,
         )
         assert exit_code == 0
-
-    def test_cli_type_overrides_toml(self, sample_config_toml):
-        url = "https://github.com/o/r/pull/1"
-        exit_code, stdout, _ = run_cli(
-            "--config",
-            str(sample_config_toml),
-            "--type",
-            "cosma",
-            "github",
-            "--check",
-            url,
-        )
-        assert exit_code == 0
-        assert "cosma_data" in stdout
 
 
 # ---------------------------------------------------------------------------
@@ -280,38 +235,6 @@ class TestGitHubFetchWrite:
         md_text = md.read_text(encoding="utf-8")
         assert "Test PR" in md_text
         assert "A test PR." in md_text
-
-    @patch("notegraph.cli.github_api.fetch", return_value=_MOCK_GH_CONTENT)
-    def test_cosma_write(self, mock_fetch, sample_config_toml, tmp_path):
-        cfg_text = Path(sample_config_toml).read_text(encoding="utf-8")
-        cosma_dir = (
-            next(line for line in cfg_text.splitlines() if "data_dir" in line)
-            .split("=")[1]
-            .strip()
-            .strip('"')
-        )
-
-        url = "https://github.com/o/r/pull/1"
-        exit_code, _stdout, _stderr = run_cli(
-            "--config",
-            str(sample_config_toml),
-            "--type",
-            "cosma",
-            "github",
-            url,
-        )
-        assert exit_code == 0
-
-        md = Path(cosma_dir) / "github-o-r-pull-1.md"
-        note = Path(cosma_dir) / "github-o-r-pull-1-note.md"
-        cursor = Path(cosma_dir) / "github-o-r-pull-1-cursor.md"
-        assert md.is_file()
-        assert note.is_file()
-        assert cursor.is_file()
-
-        md_text = md.read_text(encoding="utf-8")
-        assert "---" in md_text
-        assert "title:" in md_text
 
 
 # ---------------------------------------------------------------------------
@@ -509,24 +432,6 @@ class TestJsonFlag:
         assert "md" in data
         assert "note" not in data
         assert "cursor" not in data
-
-    @patch("notegraph.cli.github_api.fetch", return_value=_MOCK_GH_CONTENT)
-    def test_json_cosma_render(self, mock_fetch, sample_config_toml, tmp_path):
-        url = "https://github.com/o/r/pull/1"
-        exit_code, stdout, _ = run_cli(
-            "--config",
-            str(sample_config_toml),
-            "--type",
-            "cosma",
-            "github",
-            "--json",
-            url,
-        )
-        assert exit_code == 0
-
-        data = json.loads(stdout)
-        assert "---" in data["md"]["content"]
-        assert "type: summary" in data["md"]["content"]
 
 
 # ---------------------------------------------------------------------------

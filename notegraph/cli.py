@@ -2,14 +2,13 @@
 
 Usage::
 
-    notegraph [--config PATH] [--type logseq|cosma] github [OPTIONS] [URL]
-    notegraph [--config PATH] [--type logseq|cosma] jira   [OPTIONS] KEY
+    notegraph [--config PATH] github [OPTIONS] [URL]
+    notegraph [--config PATH] jira   [OPTIONS] KEY
 
 Global options (before the subcommand):
 
     --config PATH         Path to TOML config file
                           (default: ~/.config/notegraph/config.toml).
-    --type logseq|cosma   Output format (default: logseq).
 
 Subcommand options (github / jira):
 
@@ -44,7 +43,6 @@ Examples::
     notegraph github --check https://github.com/org/repo/pull/1
     notegraph github --check --json https://github.com/org/repo/pull/1
     notegraph github --summary https://github.com/org/repo/pull/1
-    notegraph --type cosma github --json https://github.com/org/repo/pull/1
     notegraph github --todo --org containers
     notegraph github --todo --org containers --repo myorg/tool --json
     notegraph jira --analysis --note RUN-3555
@@ -57,7 +55,7 @@ import os
 import sys
 import tomllib
 from pathlib import Path
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any
 
 from cyclopts import App, Group, Parameter
 from pydantic import BaseModel
@@ -67,7 +65,6 @@ from notegraph import jira as jira_api
 from notegraph import writer
 from notegraph.schema import (
     FileKind,
-    Format,
     GitHubRef,
     JiraRef,
 )
@@ -104,12 +101,6 @@ class LogseqConfig(BaseModel):
     graph_dir: str = "~/Documents/Logseq/Work/pages"
 
 
-class CosmaConfig(BaseModel):
-    """Cosma output configuration."""
-
-    data_dir: str = ""
-
-
 class AppConfig(BaseModel):
     """Full application config, assembled from TOML + env vars.
 
@@ -117,28 +108,21 @@ class AppConfig(BaseModel):
     the ``--config`` path.
     """
 
-    type: Format = "logseq"
     jira: JiraConfig = JiraConfig()
     github: GitHubConfig = GitHubConfig()
     logseq: LogseqConfig = LogseqConfig()
-    cosma: CosmaConfig = CosmaConfig()
 
     @property
     def dest_dir(self) -> str:
-        """Resolve output directory from the active format's config."""
-        match self.type:
-            case "logseq":
-                return str(Path(self.logseq.graph_dir).expanduser())
-            case "cosma":
-                return str(Path(self.cosma.data_dir).expanduser())
+        """Resolve output directory from the Logseq config."""
+        return str(Path(self.logseq.graph_dir).expanduser())
 
 
-def load_config(config_path: Path, type_override: str | None = None) -> AppConfig:
+def load_config(config_path: Path) -> AppConfig:
     """Load config from a TOML file, with env-var overrides.
 
     Args:
         config_path: Path to the TOML config file.
-        type_override: If given, overrides the ``type`` field from the file.
 
     Returns:
         Assembled ``AppConfig``.
@@ -147,9 +131,6 @@ def load_config(config_path: Path, type_override: str | None = None) -> AppConfi
     if config_path.is_file():
         with config_path.open("rb") as f:
             data = tomllib.load(f)
-
-    if type_override is not None:
-        data["type"] = type_override
 
     _apply_env_overrides(data)
 
@@ -206,14 +187,10 @@ def launcher(
         Path,
         Parameter(help="Path to config file."),
     ] = DEFAULT_CONFIG_PATH,
-    type: Annotated[  # noqa: A002
-        Literal["logseq", "cosma"],
-        Parameter(help="Output format."),
-    ] = "logseq",
 ) -> None:
     """Launch notegraph with global options."""
     global _cfg  # noqa: PLW0603
-    _cfg = load_config(config, type_override=type)
+    _cfg = load_config(config)
     app(tokens)
 
 
@@ -366,12 +343,15 @@ class JiraArgs(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+_DEFAULT_GH_ARGS = GitHubArgs()
+
+
 @app.command
-def github(args: Annotated[GitHubArgs, Parameter(name="*")] = GitHubArgs()) -> None:
+def github(args: Annotated[GitHubArgs, Parameter(name="*")] = _DEFAULT_GH_ARGS) -> None:
     """Create note files for a GitHub issue or PR.
 
-    Fetches data from the GitHub API and renders note files in the
-    configured output format (logseq or cosma).
+    Fetches data from the GitHub API and renders note files in Logseq
+    format.
 
     Use ``--todo --org <org> [--repo <owner/repo>]`` to list open
     issues/PRs you are involved in.
@@ -409,7 +389,7 @@ def github(args: Annotated[GitHubArgs, Parameter(name="*")] = GitHubArgs()) -> N
     dest = args.dest_dir or cfg.dest_dir
 
     if args.check:
-        triplet = writer_check(ref, dest, cfg.type)
+        triplet = writer_check(ref, dest)
         if args.json_output:
             sys.stdout.write(triplet.model_dump_json(indent=2) + "\n")
         else:
@@ -424,20 +404,20 @@ def github(args: Annotated[GitHubArgs, Parameter(name="*")] = GitHubArgs()) -> N
     content = github_api.fetch(ref, token=cfg.github.token)
 
     if args.json_output:
-        rendered = writer.render(content, ref, dest, cfg.type, kinds=kinds)
+        rendered = writer.render(content, ref, dest, kinds=kinds)
         out = {k: v.model_dump() for k, v in rendered.items()}
         sys.stdout.write(json.dumps(out, indent=2) + "\n")
         return
 
-    writer.write(content, ref, dest, cfg.type, kinds=kinds, replace=args.replace)
+    writer.write(content, ref, dest, kinds=kinds, replace=args.replace)
 
 
 @app.command
 def jira(args: Annotated[JiraArgs, Parameter(name="*")]) -> None:
     """Create note files for a Jira issue.
 
-    Fetches data from the Jira API and renders note files in the
-    configured output format (logseq or cosma).
+    Fetches data from the Jira API and renders note files in Logseq
+    format.
 
     Use ``--check`` to inspect file paths without fetching.
     Use ``--json`` to get machine-readable output (no files written).
@@ -451,7 +431,7 @@ def jira(args: Annotated[JiraArgs, Parameter(name="*")]) -> None:
     dest = args.dest_dir or cfg.dest_dir
 
     if args.check:
-        triplet = writer_check(ref, dest, cfg.type)
+        triplet = writer_check(ref, dest)
         if args.json_output:
             sys.stdout.write(triplet.model_dump_json(indent=2) + "\n")
         else:
@@ -470,12 +450,12 @@ def jira(args: Annotated[JiraArgs, Parameter(name="*")]) -> None:
     )
 
     if args.json_output:
-        rendered = writer.render(content, ref, dest, cfg.type, kinds=kinds)
+        rendered = writer.render(content, ref, dest, kinds=kinds)
         out = {k: v.model_dump() for k, v in rendered.items()}
         sys.stdout.write(json.dumps(out, indent=2) + "\n")
         return
 
-    writer.write(content, ref, dest, cfg.type, kinds=kinds, replace=args.replace)
+    writer.write(content, ref, dest, kinds=kinds, replace=args.replace)
 
 
 def main() -> None:
