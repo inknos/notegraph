@@ -804,6 +804,189 @@ class TestTodoFlag:
         assert call_kwargs["orgs"] == ["containers"]
         assert call_kwargs["repos"] == ["o/r"]
 
+    @patch(
+        "notegraph.cli.github_api.fetch_todo",
+        return_value=_MOCK_TODO_ITEMS,
+    )
+    def test_todo_uses_config_orgs(self, mock_fetch, tmp_path):
+        """--todo without --org/--repo falls back to config."""
+        config = tmp_path / "cfg.toml"
+        graph_dir = tmp_path / "logseq_pages"
+        graph_dir.mkdir()
+        config.write_text(
+            f'[logseq]\ngraph_dir = "{graph_dir}"\n'
+            '[github]\norgs = ["containers", "redhat"]\n'
+            'repos = ["myorg/tool"]\n',
+            encoding="utf-8",
+        )
+        exit_code, _stdout, _ = run_cli(
+            "--config",
+            str(config),
+            "github",
+            "--todo",
+        )
+        assert exit_code == 0
+        call_kwargs = mock_fetch.call_args.kwargs
+        assert call_kwargs["orgs"] == ["containers", "redhat"]
+        assert call_kwargs["repos"] == ["myorg/tool"]
+
+    @patch(
+        "notegraph.cli.github_api.fetch_todo",
+        return_value=_MOCK_TODO_ITEMS,
+    )
+    def test_cli_org_overrides_config(self, mock_fetch, tmp_path):
+        """CLI --org overrides config orgs entirely."""
+        config = tmp_path / "cfg.toml"
+        graph_dir = tmp_path / "logseq_pages"
+        graph_dir.mkdir()
+        config.write_text(
+            f'[logseq]\ngraph_dir = "{graph_dir}"\n'
+            '[github]\norgs = ["fromconfig"]\n',
+            encoding="utf-8",
+        )
+        exit_code, _, _ = run_cli(
+            "--config",
+            str(config),
+            "github",
+            "--todo",
+            "--org",
+            "fromcli",
+        )
+        assert exit_code == 0
+        call_kwargs = mock_fetch.call_args.kwargs
+        assert call_kwargs["orgs"] == ["fromcli"]
+
+    @patch(
+        "notegraph.cli.github_api.fetch_todo",
+        return_value=_MOCK_TODO_ITEMS,
+    )
+    def test_cli_multiple_orgs_override_config(self, mock_fetch, tmp_path):
+        """Multiple --org flags override config and are all passed through."""
+        config = tmp_path / "cfg.toml"
+        graph_dir = tmp_path / "logseq_pages"
+        graph_dir.mkdir()
+        config.write_text(
+            f'[logseq]\ngraph_dir = "{graph_dir}"\n'
+            '[github]\norgs = ["ignored"]\n',
+            encoding="utf-8",
+        )
+        exit_code, _, _ = run_cli(
+            "--config",
+            str(config),
+            "github",
+            "--todo",
+            "--org",
+            "containers",
+            "--org",
+            "redhat",
+        )
+        assert exit_code == 0
+        call_kwargs = mock_fetch.call_args.kwargs
+        assert call_kwargs["orgs"] == ["containers", "redhat"]
+
+    @patch(
+        "notegraph.cli.github_api.fetch_todo",
+        return_value=_MOCK_TODO_ITEMS,
+    )
+    def test_cli_repo_overrides_config(self, mock_fetch, tmp_path):
+        """CLI --repo overrides config repos entirely."""
+        config = tmp_path / "cfg.toml"
+        graph_dir = tmp_path / "logseq_pages"
+        graph_dir.mkdir()
+        config.write_text(
+            f'[logseq]\ngraph_dir = "{graph_dir}"\n'
+            '[github]\nrepos = ["old/repo"]\n',
+            encoding="utf-8",
+        )
+        exit_code, _, _ = run_cli(
+            "--config",
+            str(config),
+            "github",
+            "--todo",
+            "--repo",
+            "new/repo",
+        )
+        assert exit_code == 0
+        call_kwargs = mock_fetch.call_args.kwargs
+        assert call_kwargs["repos"] == ["new/repo"]
+
+    @patch(
+        "notegraph.cli.github_api.fetch_todo",
+        return_value=_MOCK_TODO_ITEMS,
+    )
+    def test_cli_multiple_repos_override_config(self, mock_fetch, tmp_path):
+        """Multiple --repo flags override config and are all passed through."""
+        config = tmp_path / "cfg.toml"
+        graph_dir = tmp_path / "logseq_pages"
+        graph_dir.mkdir()
+        config.write_text(
+            f'[logseq]\ngraph_dir = "{graph_dir}"\n'
+            '[github]\nrepos = ["ignored/x"]\n',
+            encoding="utf-8",
+        )
+        exit_code, _, _ = run_cli(
+            "--config",
+            str(config),
+            "github",
+            "--todo",
+            "--repo",
+            "a/b",
+            "--repo",
+            "c/d",
+        )
+        assert exit_code == 0
+        call_kwargs = mock_fetch.call_args.kwargs
+        assert call_kwargs["repos"] == ["a/b", "c/d"]
+
+    @patch(
+        "notegraph.cli.github_api.fetch_todo",
+        return_value=_MOCK_TODO_ITEMS,
+    )
+    def test_cli_org_and_repo_both_override_config(self, mock_fetch, tmp_path):
+        """CLI --org + --repo together override both config fields."""
+        config = tmp_path / "cfg.toml"
+        graph_dir = tmp_path / "logseq_pages"
+        graph_dir.mkdir()
+        config.write_text(
+            f'[logseq]\ngraph_dir = "{graph_dir}"\n'
+            '[github]\norgs = ["cfg-org"]\nrepos = ["cfg/repo"]\n',
+            encoding="utf-8",
+        )
+        exit_code, _, _ = run_cli(
+            "--config",
+            str(config),
+            "github",
+            "--todo",
+            "--org",
+            "cli-org1",
+            "--org",
+            "cli-org2",
+            "--repo",
+            "cli/repo",
+        )
+        assert exit_code == 0
+        call_kwargs = mock_fetch.call_args.kwargs
+        assert call_kwargs["orgs"] == ["cli-org1", "cli-org2"]
+        assert call_kwargs["repos"] == ["cli/repo"]
+
+    def test_todo_no_scope_anywhere_errors(self, tmp_path):
+        """--todo with no CLI flags and no config orgs/repos errors."""
+        config = tmp_path / "cfg.toml"
+        graph_dir = tmp_path / "logseq_pages"
+        graph_dir.mkdir()
+        config.write_text(
+            f'[logseq]\ngraph_dir = "{graph_dir}"\n',
+            encoding="utf-8",
+        )
+        exit_code, _, stderr = run_cli(
+            "--config",
+            str(config),
+            "github",
+            "--todo",
+        )
+        assert exit_code != 0
+        assert "--org or --repo" in stderr
+
 
 # ---------------------------------------------------------------------------
 # Helpers

@@ -8,10 +8,20 @@ email = ""
 token = ""   # prefer env JIRA_TOKEN
 repo = "~/Documents/personal_projects/notegraph/jira"
 github_field = "customfield_10875"
-jql = ""     # JQL for --todo; empty = no search
+# JQL for --todo; empty = no search. Override with --jql on the CLI.
+# Examples:
+#   Assigned to you:
+#     jql = "assignee = 'you@example.com' AND status != Closed ORDER BY updated DESC"
+#   Assigned, reported, or watched by you:
+#     jql = "(assignee = 'you@example.com' OR reporter = 'you@example.com' OR watcher = 'you@example.com') AND status != Closed ORDER BY updated DESC"
+#   Assigned to you + all open epics in a project:
+#     jql = "(assignee = 'you@example.com' AND status != Closed) OR (project = MYPROJ AND issueType = Epic AND status != Closed) ORDER BY updated DESC"
+jql = ""
 
 [github]
 token = ""   # prefer env GITHUB_TOKEN
+orgs = []    # GitHub orgs for --todo (e.g. ["containers"])
+repos = []   # GitHub repos for --todo (e.g. ["myorg/tool"])
 
 [logseq]
 graph_dir = "~/Documents/Logseq/Work/pages"

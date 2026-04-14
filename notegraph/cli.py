@@ -28,8 +28,8 @@ Subcommand options (github / jira):
 GitHub todo options (use instead of URL):
 
     --todo                List open issues/PRs you are involved in.
-    --org ORG             GitHub org to search (repeatable).
-    --repo OWNER/REPO     GitHub repo to search (repeatable).
+    --org ORG             GitHub org to search (repeatable; overrides config).
+    --repo OWNER/REPO     GitHub repo to search (repeatable; overrides config).
 
 Jira todo options (use instead of KEY):
 
@@ -106,6 +106,8 @@ class GitHubConfig(BaseModel):
     """GitHub-specific configuration."""
 
     token: str = ""
+    orgs: list[str] = []
+    repos: list[str] = []
 
 
 class LogseqConfig(BaseModel):
@@ -389,12 +391,14 @@ def github(args: Annotated[GitHubArgs, Parameter(name="*")] = _DEFAULT_GH_ARGS) 
     cfg = _get_config()
 
     if args.todo:
-        if not args.org and not args.repo_filter:
+        orgs = args.org or cfg.github.orgs
+        repos = args.repo_filter or cfg.github.repos
+        if not orgs and not repos:
             sys.stderr.write("Error: --todo requires at least one --org or --repo.\n")
             raise SystemExit(1)
         items = github_api.fetch_todo(
-            orgs=args.org,
-            repos=args.repo_filter,
+            orgs=orgs,
+            repos=repos,
             token=cfg.github.token,
         )
         if args.json_output:
