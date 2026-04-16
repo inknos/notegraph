@@ -2,20 +2,20 @@
 
 Usage::
 
-    notegraph [--config PATH] github [OPTIONS] [URL]
-    notegraph [--config PATH] jira   [OPTIONS] KEY
+    notegraph [--config PATH] fetch --source github|jira <URL_OR_KEY> [OPTIONS]
+    notegraph [--config PATH] todo  [--source github|jira] [OPTIONS]
 
 Global options (before the subcommand):
 
     --config PATH         Path to TOML config file
                           (default: ~/.config/notegraph/config.toml).
 
-Subcommand options (github / jira):
+``fetch`` options:
 
+    --source github|jira  Source platform (required).
+    <URL_OR_KEY>          GitHub URL or Jira key / browse URL (required).
     --check               Show file paths and existence, then exit.
     --json                Output JSON instead of human-readable text.
-                          With --check: JSON triplet.  Without --check:
-                          rendered file contents (no files written).
     --summary             Include the summary (md) file.
     --note                Include the user-notes file.
     --analysis            Include the agent-analysis (cursor) file.
@@ -25,45 +25,36 @@ Subcommand options (github / jira):
     --replace             Overwrite existing note/analysis files.
     --dest-dir DIR        Override output directory.
 
-GitHub todo options (use instead of URL):
+``todo`` options:
 
-    --todo                List open issues/PRs you are involved in.
+    --source github|jira  Filter to one source (default: both).
+    --json                Output JSON array.
+    --sync                Write worktodo.md and fetch note triplets.
     --org ORG             GitHub org to search (repeatable; overrides config).
     --repo OWNER/REPO     GitHub repo to search (repeatable; overrides config).
-
-Jira todo options (use instead of KEY):
-
-    --todo                List issues matching a JQL query.
-    --jql QUERY           JQL query (overrides config; empty = no search).
-
-File selection logic:
-
-    If any *positive* flag (--summary, --note, --analysis) is given,
-    only those kinds are included.  If none are given the default is
-    all three.  Negative flags (--no-summary, etc.) subtract from
-    whatever set is active.
+    --jql QUERY           Jira JQL override.
+    --dest-dir DIR        Override output directory.
 
 Examples::
 
-    notegraph github --check https://github.com/org/repo/pull/1
-    notegraph github --check --json https://github.com/org/repo/pull/1
-    notegraph github --summary https://github.com/org/repo/pull/1
-    notegraph github --todo --org containers
-    notegraph github --todo --org containers --repo myorg/tool --json
-    notegraph jira --analysis --note RUN-3555
-    notegraph jira --todo
-    notegraph jira --todo --jql "assignee = currentUser() AND status != Done"
-    notegraph jira --todo --json
+    notegraph fetch --source github https://github.com/org/repo/pull/1
+    notegraph fetch --source github --check https://github.com/org/repo/pull/1
+    notegraph fetch --source jira RUN-3555
+    notegraph todo
+    notegraph todo --source github --org containers
+    notegraph todo --json
+    notegraph todo --sync
 """
 
 from __future__ import annotations
 
 import json
+import logging
 import os
 import sys
 import tomllib
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from cyclopts import App, Group, Parameter
 from pydantic import BaseModel
@@ -78,8 +69,12 @@ from notegraph.schema import (
     GitHubRef,
     JiraRef,
     NoteContent,
+    TodoItem,
 )
+from notegraph.todo import merge_worktodo, parse_worktodo, write_worktodo
 from notegraph.writer import check as writer_check
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_CONFIG_PATH = Path("~/.config/notegraph/config.toml").expanduser()
 
@@ -270,25 +265,17 @@ def _resolve_kinds(
 # ---------------------------------------------------------------------------
 
 
-class GitHubArgs(BaseModel):
-    """Arguments for the ``github`` subcommand."""
+class FetchArgs(BaseModel):
+    """Arguments for the ``fetch`` subcommand."""
 
-    url: Annotated[
-        str | None,
-        Parameter(help="GitHub issue or PR URL (required unless --todo)."),
-    ] = None
-    todo: Annotated[
-        bool,
-        Parameter(help="List open issues/PRs you are involved in."),
-    ] = False
-    org: Annotated[
-        list[str],
-        Parameter(help="GitHub org to search (repeatable, for --todo)."),
-    ] = []
-    repo_filter: Annotated[
-        list[str],
-        Parameter("--repo", help="GitHub owner/repo to search (repeatable, for --todo)."),
-    ] = []
+    target: Annotated[
+        str,
+        Parameter(help="GitHub URL or Jira issue key / browse URL."),
+    ] = ""
+    source: Annotated[
+        Literal["github", "jira"],
+        Parameter(help="Source platform: github or jira."),
+    ] = "github"
     check: Annotated[
         bool,
         Parameter(help="Show file paths and existence, then exit."),
@@ -319,45 +306,33 @@ class GitHubArgs(BaseModel):
     ] = None
 
 
-class JiraArgs(BaseModel):
-    """Arguments for the ``jira`` subcommand."""
+class TodoArgs(BaseModel):
+    """Arguments for the ``todo`` subcommand."""
 
-    key: Annotated[
-        str | None,
-        Parameter(help="Jira issue key or browse URL (required unless --todo)."),
+    source: Annotated[
+        Literal["github", "jira"] | None,
+        Parameter(help="Filter to one source (default: both)."),
     ] = None
-    todo: Annotated[
-        bool,
-        Parameter(help="List open issues matching a JQL query."),
-    ] = False
-    jql: Annotated[
-        str | None,
-        Parameter(help="JQL query for --todo (overrides config)."),
-    ] = None
-    check: Annotated[
-        bool,
-        Parameter(help="Show file paths and existence, then exit."),
-    ] = False
     json_output: Annotated[
         bool,
-        Parameter("--json", help="Output JSON instead of human-readable text."),
+        Parameter("--json", help="Output JSON array."),
     ] = False
-    replace: Annotated[
+    sync: Annotated[
         bool,
-        Parameter(help="Overwrite existing note/analysis files."),
+        Parameter(help="Write worktodo.md and fetch note triplets for each item."),
     ] = False
-    summary: Annotated[
-        bool,
-        Parameter(help="Include the summary (md) file."),
-    ] = False
-    note: Annotated[
-        bool,
-        Parameter(help="Include the user-notes file."),
-    ] = False
-    analysis: Annotated[
-        bool,
-        Parameter(help="Include the agent-analysis (cursor) file."),
-    ] = False
+    org: Annotated[
+        list[str],
+        Parameter(help="GitHub org to search (repeatable, overrides config)."),
+    ] = []
+    repo_filter: Annotated[
+        list[str],
+        Parameter("--repo", help="GitHub owner/repo to search (repeatable, overrides config)."),
+    ] = []
+    jql: Annotated[
+        str | None,
+        Parameter(help="Jira JQL override."),
+    ] = None
     dest_dir: Annotated[
         str | None,
         Parameter(help="Override output directory."),
@@ -369,18 +344,15 @@ class JiraArgs(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-_DEFAULT_GH_ARGS = GitHubArgs()
+_DEFAULT_FETCH_ARGS = FetchArgs()
 
 
 @app.command
-def github(args: Annotated[GitHubArgs, Parameter(name="*")] = _DEFAULT_GH_ARGS) -> None:
-    """Create note files for a GitHub issue or PR.
+def fetch(args: Annotated[FetchArgs, Parameter(name="*")] = _DEFAULT_FETCH_ARGS) -> None:
+    """Fetch a single issue/PR and write note triplets.
 
-    Fetches data from the GitHub API and renders note files in Logseq
-    format.
-
-    Use ``--todo --org <org> [--repo <owner/repo>]`` to list open
-    issues/PRs you are involved in.
+    Use ``--source github`` with a full GitHub URL, or
+    ``--source jira`` with a Jira key or browse URL.
     Use ``--check`` to inspect file paths without fetching.
     Use ``--json`` to get machine-readable output (no files written).
     Use ``--summary``, ``--note``, ``--analysis`` to select which files
@@ -390,31 +362,20 @@ def github(args: Annotated[GitHubArgs, Parameter(name="*")] = _DEFAULT_GH_ARGS) 
     """
     cfg = _get_config()
 
-    if args.todo:
-        orgs = args.org or cfg.github.orgs
-        repos = args.repo_filter or cfg.github.repos
-        if not orgs and not repos:
-            sys.stderr.write("Error: --todo requires at least one --org or --repo.\n")
-            raise SystemExit(1)
-        items = github_api.fetch_todo(
-            orgs=orgs,
-            repos=repos,
-            token=cfg.github.token,
-        )
-        if args.json_output:
-            out = [item.model_dump() for item in items]
-            sys.stdout.write(json.dumps(out, indent=2) + "\n")
-        else:
-            for item in items:
-                sys.stdout.write(item.url + "\n")
-        return
-
-    if not args.url:
-        sys.stderr.write("Error: a GitHub URL is required (or use --todo).\n")
+    if not args.target:
+        sys.stderr.write("Error: a target URL or key is required.\n")
         raise SystemExit(1)
 
-    ref = GitHubRef.from_url(args.url)
     dest = args.dest_dir or cfg.dest_dir
+
+    if args.source == "github":
+        _fetch_github(args, cfg, dest)
+    else:
+        _fetch_jira(args, cfg, dest)
+
+
+def _fetch_github(args: FetchArgs, cfg: AppConfig, dest: str) -> None:
+    ref = GitHubRef.from_url(args.target)
 
     if args.check:
         triplet = writer_check(ref, dest)
@@ -424,11 +385,7 @@ def github(args: Annotated[GitHubArgs, Parameter(name="*")] = _DEFAULT_GH_ARGS) 
             sys.stdout.write(triplet.format_table() + "\n")
         return
 
-    kinds = _resolve_kinds(
-        summary=args.summary,
-        note=args.note,
-        analysis=args.analysis,
-    )
+    kinds = _resolve_kinds(summary=args.summary, note=args.note, analysis=args.analysis)
     content = github_api.fetch(ref, token=cfg.github.token)
 
     if args.json_output:
@@ -440,48 +397,8 @@ def github(args: Annotated[GitHubArgs, Parameter(name="*")] = _DEFAULT_GH_ARGS) 
     writer.write(content, ref, dest, kinds=kinds, replace=args.replace)
 
 
-_DEFAULT_JIRA_ARGS = JiraArgs()
-
-
-@app.command
-def jira(args: Annotated[JiraArgs, Parameter(name="*")] = _DEFAULT_JIRA_ARGS) -> None:
-    """Create note files for a Jira issue.
-
-    Fetches data from the Jira API and renders note files in Logseq
-    format.
-
-    Use ``--todo [--jql QUERY]`` to list issues matching a JQL query.
-    Use ``--check`` to inspect file paths without fetching.
-    Use ``--json`` to get machine-readable output (no files written).
-    Use ``--summary``, ``--note``, ``--analysis`` to select which files
-    to generate.
-    Use ``--replace`` to overwrite existing note/analysis files
-    (summary is always overwritten).
-    """
-    cfg = _get_config()
-
-    if args.todo:
-        jql = args.jql if args.jql is not None else cfg.jira.jql
-        items = jira_api.fetch_todo(
-            endpoint=cfg.jira.endpoint,
-            jql=jql,
-            email=cfg.jira.email,
-            token=cfg.jira.token,
-        )
-        if args.json_output:
-            out = [item.model_dump() for item in items]
-            sys.stdout.write(json.dumps(out, indent=2) + "\n")
-        else:
-            for item in items:
-                sys.stdout.write(item.url + "\n")
-        return
-
-    if not args.key:
-        sys.stderr.write("Error: a Jira key is required (or use --todo).\n")
-        raise SystemExit(1)
-
-    ref = JiraRef.from_string(args.key, default_endpoint=cfg.jira.endpoint)
-    dest = args.dest_dir or cfg.dest_dir
+def _fetch_jira(args: FetchArgs, cfg: AppConfig, dest: str) -> None:
+    ref = JiraRef.from_string(args.target, default_endpoint=cfg.jira.endpoint)
 
     if args.check:
         triplet = writer_check(ref, dest)
@@ -491,11 +408,7 @@ def jira(args: Annotated[JiraArgs, Parameter(name="*")] = _DEFAULT_JIRA_ARGS) ->
             sys.stdout.write(triplet.format_table() + "\n")
         return
 
-    kinds = _resolve_kinds(
-        summary=args.summary,
-        note=args.note,
-        analysis=args.analysis,
-    )
+    kinds = _resolve_kinds(summary=args.summary, note=args.note, analysis=args.analysis)
     content = jira_api.fetch(
         ref,
         email=cfg.jira.email,
@@ -511,6 +424,116 @@ def jira(args: Annotated[JiraArgs, Parameter(name="*")] = _DEFAULT_JIRA_ARGS) ->
 
     writer.write(content, ref, dest, kinds=kinds, replace=args.replace)
     _chain_github(content, dest, cfg=cfg, replace=args.replace)
+
+
+_DEFAULT_TODO_ARGS = TodoArgs()
+
+
+@app.command
+def todo(args: Annotated[TodoArgs, Parameter(name="*")] = _DEFAULT_TODO_ARGS) -> None:
+    """List open items and optionally sync worktodo.md + note triplets.
+
+    Without flags, prints URLs from both GitHub and Jira.
+    Use ``--source`` to filter to one platform.
+    Use ``--json`` for machine-readable output.
+    Use ``--sync`` to write ``worktodo.md`` and fetch/write note files
+    for every listed item.
+    """
+    cfg = _get_config()
+    dest = args.dest_dir or cfg.dest_dir
+
+    items = _collect_todo_items(args, cfg)
+
+    if args.json_output:
+        out = [item.model_dump() for item in items]
+        sys.stdout.write(json.dumps(out, indent=2) + "\n")
+        return
+
+    if args.sync:
+        _sync_worktodo(items, dest, cfg)
+        return
+
+    for item in items:
+        sys.stdout.write(item.url + "\n")
+
+
+def _collect_todo_items(
+    args: TodoArgs,
+    cfg: AppConfig,
+) -> list:
+    """Gather todo items from GitHub, Jira, or both.
+
+    Args:
+        args: Parsed todo arguments.
+        cfg: Application config.
+
+    Returns:
+        Combined list of ``TodoItem`` instances.
+    """
+    items: list[TodoItem] = []
+
+    if args.source in (None, "github"):
+        orgs = args.org or cfg.github.orgs
+        repos = args.repo_filter or cfg.github.repos
+        if orgs or repos:
+            items.extend(
+                github_api.fetch_todo(orgs=orgs, repos=repos, token=cfg.github.token)
+            )
+        elif args.source == "github":
+            sys.stderr.write("Error: --source github requires at least one --org or --repo.\n")
+            raise SystemExit(1)
+
+    if args.source in (None, "jira"):
+        jql = args.jql if args.jql is not None else cfg.jira.jql
+        if jql or args.source == "jira":
+            items.extend(
+                jira_api.fetch_todo(
+                    endpoint=cfg.jira.endpoint,
+                    jql=jql,
+                    email=cfg.jira.email,
+                    token=cfg.jira.token,
+                )
+            )
+
+    return items
+
+
+def _sync_worktodo(
+    items: list,
+    dest: str,
+    cfg: AppConfig,
+) -> None:
+    """Write ``worktodo.md`` and fetch note triplets for every item.
+
+    Args:
+        items: All collected todo items.
+        dest: Output directory.
+        cfg: Application config.
+    """
+    worktodo_path = Path(dest) / "worktodo.md"
+    existing = parse_worktodo(worktodo_path)
+    merged = merge_worktodo(existing, items)
+    write_worktodo(merged, worktodo_path)
+    sys.stderr.write(f"Wrote {worktodo_path}\n")
+
+    for item in items:
+        try:
+            if item.source == "github":
+                ref = GitHubRef.from_url(item.url)
+                content = github_api.fetch(ref, token=cfg.github.token)
+                writer.write(content, ref, dest, replace=False)
+            elif item.source == "jira":
+                ref = JiraRef.from_string(item.url, default_endpoint=cfg.jira.endpoint)
+                content = jira_api.fetch(
+                    ref,
+                    email=cfg.jira.email,
+                    token=cfg.jira.token,
+                    github_field=cfg.jira.github_field,
+                )
+                writer.write(content, ref, dest, replace=False)
+                _chain_github(content, dest, cfg=cfg, replace=False)
+        except (GitHubFetchError, JiraFetchError, ValueError) as exc:
+            logger.warning("Skipping %s: %s", item.url, exc)
 
 
 def _chain_github(

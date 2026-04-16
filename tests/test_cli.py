@@ -37,12 +37,19 @@ def run_cli(*args: str) -> tuple[int, str, str]:
     return exit_code, stdout_buf.getvalue(), stderr_buf.getvalue()
 
 
-class TestGitHubCheck:
+# ---------------------------------------------------------------------------
+# fetch --source github --check
+# ---------------------------------------------------------------------------
+
+
+class TestFetchGitHubCheck:
     def test_check_valid_url(self, tmp_path, sample_config_toml):
         url = "https://github.com/containers/podman/pull/24126"
         exit_code, stdout, _ = run_cli(
             "--config",
             str(sample_config_toml),
+            "fetch",
+            "--source",
             "github",
             "--check",
             url,
@@ -59,6 +66,8 @@ class TestGitHubCheck:
         exit_code, stdout, _ = run_cli(
             "--config",
             str(sample_config_toml),
+            "fetch",
+            "--source",
             "github",
             "--check",
             url,
@@ -70,6 +79,8 @@ class TestGitHubCheck:
         exit_code, _, _stderr = run_cli(
             "--config",
             str(sample_config_toml),
+            "fetch",
+            "--source",
             "github",
             "--check",
             "not-a-url",
@@ -81,22 +92,15 @@ class TestGitHubCheck:
         exit_code, stdout, _ = run_cli(
             "--config",
             str(sample_config_toml),
+            "fetch",
+            "--source",
             "github",
             "--check",
             url,
         )
         assert exit_code == 0
         ref = GitHubRef.from_url(url)
-        cfg_graph_dir = (
-            next(
-                line
-                for line in Path(sample_config_toml).read_text(encoding="utf-8").splitlines()
-                if "graph_dir" in line
-            )
-            .split("=")[1]
-            .strip()
-            .strip('"')
-        )
+        cfg_graph_dir = _extract_graph_dir(sample_config_toml)
         pi = PathInfo.from_github(ref, cfg_graph_dir)
         assert pi.md_path in stdout
         assert pi.note_path in stdout
@@ -107,6 +111,8 @@ class TestGitHubCheck:
         exit_code, stdout, _ = run_cli(
             "--config",
             str(sample_config_toml),
+            "fetch",
+            "--source",
             "github",
             "--check",
             url,
@@ -115,11 +121,18 @@ class TestGitHubCheck:
         assert "\u2717" in stdout
 
 
-class TestJiraCheck:
+# ---------------------------------------------------------------------------
+# fetch --source jira --check
+# ---------------------------------------------------------------------------
+
+
+class TestFetchJiraCheck:
     def test_check_bare_key(self, tmp_path, sample_config_toml):
         exit_code, stdout, _ = run_cli(
             "--config",
             str(sample_config_toml),
+            "fetch",
+            "--source",
             "jira",
             "--check",
             "RUN-3555",
@@ -131,6 +144,8 @@ class TestJiraCheck:
         exit_code, stdout, _ = run_cli(
             "--config",
             str(sample_config_toml),
+            "fetch",
+            "--source",
             "jira",
             "--check",
             "run-100",
@@ -139,13 +154,20 @@ class TestJiraCheck:
         assert "RUN-100" in stdout
 
 
-class TestDestDirOverride:
+# ---------------------------------------------------------------------------
+# fetch --dest-dir
+# ---------------------------------------------------------------------------
+
+
+class TestFetchDestDirOverride:
     def test_dest_dir_overrides_config(self, tmp_path, sample_config_toml):
         override_dir = str(tmp_path / "custom")
         url = "https://github.com/o/r/pull/1"
         exit_code, stdout, _ = run_cli(
             "--config",
             str(sample_config_toml),
+            "fetch",
+            "--source",
             "github",
             "--check",
             url,
@@ -156,12 +178,19 @@ class TestDestDirOverride:
         assert override_dir in stdout
 
 
+# ---------------------------------------------------------------------------
+# Global --config flag
+# ---------------------------------------------------------------------------
+
+
 class TestConfigFlag:
     def test_custom_config_path(self, sample_config_toml):
         url = "https://github.com/o/r/pull/1"
         exit_code, stdout, _ = run_cli(
             "--config",
             str(sample_config_toml),
+            "fetch",
+            "--source",
             "github",
             "--check",
             url,
@@ -175,6 +204,8 @@ class TestConfigFlag:
         exit_code, _stdout, _ = run_cli(
             "--config",
             missing,
+            "fetch",
+            "--source",
             "github",
             "--check",
             url,
@@ -200,25 +231,21 @@ _MOCK_GH_CONTENT = NoteContent(
 
 
 # ---------------------------------------------------------------------------
-# GitHub fetch+write (end-to-end with mocked fetcher)
+# fetch --source github (end-to-end with mocked fetcher)
 # ---------------------------------------------------------------------------
 
 
-class TestGitHubFetchWrite:
+class TestFetchGitHubWrite:
     @patch("notegraph.cli.github_api.fetch", return_value=_MOCK_GH_CONTENT)
     def test_writes_files(self, mock_fetch, sample_config_toml, tmp_path):
-        cfg_text = Path(sample_config_toml).read_text(encoding="utf-8")
-        graph_dir = (
-            next(line for line in cfg_text.splitlines() if "graph_dir" in line)
-            .split("=")[1]
-            .strip()
-            .strip('"')
-        )
+        graph_dir = _extract_graph_dir(sample_config_toml)
 
         url = "https://github.com/o/r/pull/1"
         exit_code, _stdout, _stderr = run_cli(
             "--config",
             str(sample_config_toml),
+            "fetch",
+            "--source",
             "github",
             url,
         )
@@ -238,11 +265,11 @@ class TestGitHubFetchWrite:
 
 
 # ---------------------------------------------------------------------------
-# --summary / --note / --analysis kind selection
+# fetch --summary / --note / --analysis kind selection
 # ---------------------------------------------------------------------------
 
 
-class TestKindFlags:
+class TestFetchKindFlags:
     @patch("notegraph.cli.github_api.fetch", return_value=_MOCK_GH_CONTENT)
     def test_summary_only(self, mock_fetch, sample_config_toml, tmp_path):
         graph_dir = _extract_graph_dir(sample_config_toml)
@@ -250,6 +277,8 @@ class TestKindFlags:
         exit_code, _, _ = run_cli(
             "--config",
             str(sample_config_toml),
+            "fetch",
+            "--source",
             "github",
             "--summary",
             url,
@@ -266,6 +295,8 @@ class TestKindFlags:
         exit_code, _, _ = run_cli(
             "--config",
             str(sample_config_toml),
+            "fetch",
+            "--source",
             "github",
             "--note",
             "--analysis",
@@ -283,6 +314,8 @@ class TestKindFlags:
         exit_code, _, _ = run_cli(
             "--config",
             str(sample_config_toml),
+            "fetch",
+            "--source",
             "github",
             url,
         )
@@ -293,11 +326,11 @@ class TestKindFlags:
 
 
 # ---------------------------------------------------------------------------
-# --replace flag
+# fetch --replace flag
 # ---------------------------------------------------------------------------
 
 
-class TestReplaceFlag:
+class TestFetchReplaceFlag:
     @patch("notegraph.cli.github_api.fetch", return_value=_MOCK_GH_CONTENT)
     def test_replace_overwrites_note(self, mock_fetch, sample_config_toml, tmp_path):
         graph_dir = _extract_graph_dir(sample_config_toml)
@@ -309,6 +342,8 @@ class TestReplaceFlag:
         exit_code, _, _ = run_cli(
             "--config",
             str(sample_config_toml),
+            "fetch",
+            "--source",
             "github",
             "--replace",
             "--note",
@@ -328,6 +363,8 @@ class TestReplaceFlag:
         exit_code, _, _ = run_cli(
             "--config",
             str(sample_config_toml),
+            "fetch",
+            "--source",
             "github",
             url,
         )
@@ -346,6 +383,8 @@ class TestReplaceFlag:
         exit_code, _, _ = run_cli(
             "--config",
             str(sample_config_toml),
+            "fetch",
+            "--source",
             "github",
             "--replace",
             "--summary",
@@ -356,16 +395,18 @@ class TestReplaceFlag:
 
 
 # ---------------------------------------------------------------------------
-# --json flag
+# fetch --json flag
 # ---------------------------------------------------------------------------
 
 
-class TestJsonFlag:
+class TestFetchJsonFlag:
     def test_json_check(self, sample_config_toml):
         url = "https://github.com/o/r/pull/1"
         exit_code, stdout, _ = run_cli(
             "--config",
             str(sample_config_toml),
+            "fetch",
+            "--source",
             "github",
             "--check",
             "--json",
@@ -383,6 +424,8 @@ class TestJsonFlag:
         exit_code, stdout, _ = run_cli(
             "--config",
             str(sample_config_toml),
+            "fetch",
+            "--source",
             "jira",
             "--check",
             "--json",
@@ -399,6 +442,8 @@ class TestJsonFlag:
         exit_code, stdout, _ = run_cli(
             "--config",
             str(sample_config_toml),
+            "fetch",
+            "--source",
             "github",
             "--json",
             url,
@@ -421,6 +466,8 @@ class TestJsonFlag:
         exit_code, stdout, _ = run_cli(
             "--config",
             str(sample_config_toml),
+            "fetch",
+            "--source",
             "github",
             "--json",
             "--summary",
@@ -435,7 +482,7 @@ class TestJsonFlag:
 
 
 # ---------------------------------------------------------------------------
-# Jira fetch+write
+# fetch --source jira (write)
 # ---------------------------------------------------------------------------
 
 _MOCK_JIRA_CONTENT = NoteContent(
@@ -469,13 +516,15 @@ _MOCK_JIRA_CONTENT_WITH_GH = NoteContent(
 )
 
 
-class TestJiraFetchWrite:
+class TestFetchJiraWrite:
     @patch("notegraph.cli.jira_api.fetch", return_value=_MOCK_JIRA_CONTENT)
     def test_writes_jira_files(self, mock_fetch, sample_config_toml, tmp_path):
         graph_dir = _extract_graph_dir(sample_config_toml)
         exit_code, _, _ = run_cli(
             "--config",
             str(sample_config_toml),
+            "fetch",
+            "--source",
             "jira",
             "RUN-100",
         )
@@ -497,6 +546,8 @@ class TestJiraFetchWrite:
         exit_code, _, _ = run_cli(
             "--config",
             str(sample_config_toml),
+            "fetch",
+            "--source",
             "jira",
             "RUN-100",
         )
@@ -515,6 +566,8 @@ class TestJiraFetchWrite:
         exit_code, _, _ = run_cli(
             "--config",
             str(sample_config_toml),
+            "fetch",
+            "--source",
             "jira",
             "RUN-100",
         )
@@ -525,144 +578,24 @@ class TestJiraFetchWrite:
 
 
 # ---------------------------------------------------------------------------
-# Jira --todo flag
+# fetch: missing target errors
 # ---------------------------------------------------------------------------
 
-_MOCK_JIRA_TODO_ITEMS = [
-    TodoItem(
-        url="https://test.atlassian.net/browse/RUN-100",
-        title="Fix the widget",
-        source="jira",
-        kind="bug",
-        state="In Progress",
-        repo="RUN",
-        updated_at="2026-04-10",
-    ),
-    TodoItem(
-        url="https://test.atlassian.net/browse/RUN-50",
-        title="Add caching",
-        source="jira",
-        kind="story",
-        state="Open",
-        repo="RUN",
-        updated_at="2026-04-08",
-    ),
-]
 
-
-class TestJiraTodoFlag:
-    @patch(
-        "notegraph.cli.jira_api.fetch_todo",
-        return_value=_MOCK_JIRA_TODO_ITEMS,
-    )
-    def test_todo_plain_output(self, mock_fetch, sample_config_toml):
-        exit_code, stdout, _ = run_cli(
+class TestFetchErrors:
+    def test_missing_target(self, sample_config_toml):
+        exit_code, _, _stderr = run_cli(
             "--config",
             str(sample_config_toml),
-            "jira",
-            "--todo",
-            "--jql",
-            "project = RUN",
-        )
-        assert exit_code == 0
-        lines = stdout.strip().splitlines()
-        assert len(lines) == 2
-        assert "RUN-100" in lines[0]
-        assert "RUN-50" in lines[1]
-
-    @patch(
-        "notegraph.cli.jira_api.fetch_todo",
-        return_value=_MOCK_JIRA_TODO_ITEMS,
-    )
-    def test_todo_json_output(self, mock_fetch, sample_config_toml):
-        exit_code, stdout, _ = run_cli(
-            "--config",
-            str(sample_config_toml),
-            "jira",
-            "--todo",
-            "--json",
-            "--jql",
-            "project = RUN",
-        )
-        assert exit_code == 0
-        data = json.loads(stdout)
-        assert len(data) == 2
-        assert data[0]["source"] == "jira"
-        assert data[0]["kind"] == "bug"
-        assert data[1]["kind"] == "story"
-
-    @patch(
-        "notegraph.cli.jira_api.fetch_todo",
-        return_value=[],
-    )
-    def test_todo_empty_jql_from_config(self, mock_fetch, sample_config_toml):
-        """--todo with empty JQL in config returns empty list."""
-        exit_code, stdout, _ = run_cli(
-            "--config",
-            str(sample_config_toml),
-            "jira",
-            "--todo",
-        )
-        assert exit_code == 0
-        assert stdout.strip() == ""
-        call_kwargs = mock_fetch.call_args.kwargs
-        assert call_kwargs["jql"] == ""
-
-    @patch(
-        "notegraph.cli.jira_api.fetch_todo",
-        return_value=_MOCK_JIRA_TODO_ITEMS,
-    )
-    def test_cli_jql_overrides_config(self, mock_fetch, sample_config_toml):
-        """--jql flag overrides the JQL from config."""
-        exit_code, _, _ = run_cli(
-            "--config",
-            str(sample_config_toml),
-            "jira",
-            "--todo",
-            "--jql",
-            "assignee = me",
-        )
-        assert exit_code == 0
-        call_kwargs = mock_fetch.call_args.kwargs
-        assert call_kwargs["jql"] == "assignee = me"
-
-    @patch(
-        "notegraph.cli.jira_api.fetch_todo",
-        return_value=_MOCK_JIRA_TODO_ITEMS,
-    )
-    def test_config_jql_used_when_no_cli_flag(self, mock_fetch, tmp_path):
-        """JQL from config is used when --jql not passed."""
-        config = tmp_path / "cfg.toml"
-        graph_dir = tmp_path / "logseq_pages"
-        graph_dir.mkdir()
-        config.write_text(
-            f'[logseq]\ngraph_dir = "{graph_dir}"\n'
-            '[jira]\nendpoint = "test.atlassian.net"\n'
-            'jql = "project = FROMCONF"\n',
-            encoding="utf-8",
-        )
-        exit_code, _, _ = run_cli(
-            "--config",
-            str(config),
-            "jira",
-            "--todo",
-        )
-        assert exit_code == 0
-        call_kwargs = mock_fetch.call_args.kwargs
-        assert call_kwargs["jql"] == "project = FROMCONF"
-
-    def test_no_key_no_todo_errors(self, sample_config_toml):
-        exit_code, _, stderr = run_cli(
-            "--config",
-            str(sample_config_toml),
-            "jira",
+            "fetch",
+            "--source",
+            "github",
         )
         assert exit_code != 0
-        assert "key is required" in stderr
 
 
 # ---------------------------------------------------------------------------
-# GitHub --todo flag
+# ``todo`` subcommand
 # ---------------------------------------------------------------------------
 
 _MOCK_TODO_ITEMS = [
@@ -686,20 +619,41 @@ _MOCK_TODO_ITEMS = [
     ),
 ]
 
+_MOCK_JIRA_TODO_ITEMS = [
+    TodoItem(
+        url="https://test.atlassian.net/browse/RUN-100",
+        title="Fix the widget",
+        source="jira",
+        kind="bug",
+        state="In Progress",
+        repo="RUN",
+        updated_at="2026-04-10",
+    ),
+    TodoItem(
+        url="https://test.atlassian.net/browse/RUN-50",
+        title="Add caching",
+        source="jira",
+        kind="story",
+        state="Open",
+        repo="RUN",
+        updated_at="2026-04-08",
+    ),
+]
 
-class TestTodoFlag:
-    @patch(
-        "notegraph.cli.github_api.fetch_todo",
-        return_value=_MOCK_TODO_ITEMS,
-    )
-    def test_todo_plain_output(self, mock_fetch, sample_config_toml):
+
+class TestTodoGitHub:
+    @patch("notegraph.cli.github_api.fetch_todo", return_value=_MOCK_TODO_ITEMS)
+    def test_plain_output(self, mock_fetch, tmp_path):
+        config = tmp_path / "cfg.toml"
+        graph_dir = tmp_path / "pages"
+        graph_dir.mkdir()
+        config.write_text(
+            f'[logseq]\ngraph_dir = "{graph_dir}"\n'
+            '[github]\norgs = ["o"]\n',
+            encoding="utf-8",
+        )
         exit_code, stdout, _ = run_cli(
-            "--config",
-            str(sample_config_toml),
-            "github",
-            "--todo",
-            "--org",
-            "o",
+            "--config", str(config), "todo", "--source", "github",
         )
         assert exit_code == 0
         lines = stdout.strip().splitlines()
@@ -707,137 +661,43 @@ class TestTodoFlag:
         assert lines[0] == "https://github.com/o/r/pull/1"
         assert lines[1] == "https://github.com/o/r/issues/2"
 
-    @patch(
-        "notegraph.cli.github_api.fetch_todo",
-        return_value=_MOCK_TODO_ITEMS,
-    )
-    def test_todo_json_output(self, mock_fetch, sample_config_toml):
+    @patch("notegraph.cli.github_api.fetch_todo", return_value=_MOCK_TODO_ITEMS)
+    def test_json_output(self, mock_fetch, tmp_path):
+        config = tmp_path / "cfg.toml"
+        graph_dir = tmp_path / "pages"
+        graph_dir.mkdir()
+        config.write_text(
+            f'[logseq]\ngraph_dir = "{graph_dir}"\n'
+            '[github]\norgs = ["o"]\n',
+            encoding="utf-8",
+        )
         exit_code, stdout, _ = run_cli(
-            "--config",
-            str(sample_config_toml),
-            "github",
-            "--todo",
-            "--json",
-            "--org",
-            "o",
+            "--config", str(config), "todo", "--source", "github", "--json",
         )
         assert exit_code == 0
         data = json.loads(stdout)
         assert len(data) == 2
-        assert data[0]["url"] == "https://github.com/o/r/pull/1"
-        assert data[0]["kind"] == "pull_request"
         assert data[0]["source"] == "github"
-        assert data[1]["kind"] == "issue"
+        assert data[0]["kind"] == "pull_request"
 
-    def test_todo_no_scope_errors(self, sample_config_toml):
+    def test_no_scope_errors(self, tmp_path):
+        config = tmp_path / "cfg.toml"
+        graph_dir = tmp_path / "pages"
+        graph_dir.mkdir()
+        config.write_text(
+            f'[logseq]\ngraph_dir = "{graph_dir}"\n',
+            encoding="utf-8",
+        )
         exit_code, _, stderr = run_cli(
-            "--config",
-            str(sample_config_toml),
-            "github",
-            "--todo",
+            "--config", str(config), "todo", "--source", "github",
         )
         assert exit_code != 0
         assert "--org or --repo" in stderr
 
-    def test_no_url_no_todo_errors(self, sample_config_toml):
-        exit_code, _, stderr = run_cli(
-            "--config",
-            str(sample_config_toml),
-            "github",
-        )
-        assert exit_code != 0
-        assert "URL is required" in stderr
-
-    @patch(
-        "notegraph.cli.github_api.fetch_todo",
-        return_value=[],
-    )
-    def test_todo_empty_result(self, mock_fetch, sample_config_toml):
-        exit_code, stdout, _ = run_cli(
-            "--config",
-            str(sample_config_toml),
-            "github",
-            "--todo",
-            "--org",
-            "emptyorg",
-        )
-        assert exit_code == 0
-        assert stdout.strip() == ""
-
-    @patch(
-        "notegraph.cli.github_api.fetch_todo",
-        return_value=_MOCK_TODO_ITEMS,
-    )
-    def test_todo_with_repo(self, mock_fetch, sample_config_toml):
-        exit_code, stdout, _ = run_cli(
-            "--config",
-            str(sample_config_toml),
-            "github",
-            "--todo",
-            "--repo",
-            "o/r",
-        )
-        assert exit_code == 0
-        assert len(stdout.strip().splitlines()) == 2
-        mock_fetch.assert_called_once()
-        call_kwargs = mock_fetch.call_args[1]
-        assert call_kwargs["repos"] == ["o/r"]
-
-    @patch(
-        "notegraph.cli.github_api.fetch_todo",
-        return_value=_MOCK_TODO_ITEMS,
-    )
-    def test_todo_combined_org_repo(self, mock_fetch, sample_config_toml):
-        exit_code, _stdout, _ = run_cli(
-            "--config",
-            str(sample_config_toml),
-            "github",
-            "--todo",
-            "--org",
-            "containers",
-            "--repo",
-            "o/r",
-        )
-        assert exit_code == 0
-        mock_fetch.assert_called_once()
-        call_kwargs = mock_fetch.call_args[1]
-        assert call_kwargs["orgs"] == ["containers"]
-        assert call_kwargs["repos"] == ["o/r"]
-
-    @patch(
-        "notegraph.cli.github_api.fetch_todo",
-        return_value=_MOCK_TODO_ITEMS,
-    )
-    def test_todo_uses_config_orgs(self, mock_fetch, tmp_path):
-        """--todo without --org/--repo falls back to config."""
-        config = tmp_path / "cfg.toml"
-        graph_dir = tmp_path / "logseq_pages"
-        graph_dir.mkdir()
-        config.write_text(
-            f'[logseq]\ngraph_dir = "{graph_dir}"\n'
-            '[github]\norgs = ["containers", "redhat"]\n'
-            'repos = ["myorg/tool"]\n',
-            encoding="utf-8",
-        )
-        exit_code, _stdout, _ = run_cli(
-            "--config",
-            str(config),
-            "github",
-            "--todo",
-        )
-        assert exit_code == 0
-        call_kwargs = mock_fetch.call_args.kwargs
-        assert call_kwargs["orgs"] == ["containers", "redhat"]
-        assert call_kwargs["repos"] == ["myorg/tool"]
-
-    @patch(
-        "notegraph.cli.github_api.fetch_todo",
-        return_value=_MOCK_TODO_ITEMS,
-    )
+    @patch("notegraph.cli.github_api.fetch_todo", return_value=_MOCK_TODO_ITEMS)
     def test_cli_org_overrides_config(self, mock_fetch, tmp_path):
-        """CLI --org overrides config orgs entirely."""
         config = tmp_path / "cfg.toml"
-        graph_dir = tmp_path / "logseq_pages"
+        graph_dir = tmp_path / "pages"
         graph_dir.mkdir()
         config.write_text(
             f'[logseq]\ngraph_dir = "{graph_dir}"\n'
@@ -845,147 +705,237 @@ class TestTodoFlag:
             encoding="utf-8",
         )
         exit_code, _, _ = run_cli(
-            "--config",
-            str(config),
-            "github",
-            "--todo",
-            "--org",
-            "fromcli",
+            "--config", str(config), "todo", "--source", "github", "--org", "fromcli",
         )
         assert exit_code == 0
-        call_kwargs = mock_fetch.call_args.kwargs
-        assert call_kwargs["orgs"] == ["fromcli"]
+        assert mock_fetch.call_args.kwargs["orgs"] == ["fromcli"]
 
-    @patch(
-        "notegraph.cli.github_api.fetch_todo",
-        return_value=_MOCK_TODO_ITEMS,
-    )
-    def test_cli_multiple_orgs_override_config(self, mock_fetch, tmp_path):
-        """Multiple --org flags override config and are all passed through."""
+    @patch("notegraph.cli.github_api.fetch_todo", return_value=_MOCK_TODO_ITEMS)
+    def test_uses_config_orgs(self, mock_fetch, tmp_path):
         config = tmp_path / "cfg.toml"
-        graph_dir = tmp_path / "logseq_pages"
+        graph_dir = tmp_path / "pages"
         graph_dir.mkdir()
         config.write_text(
             f'[logseq]\ngraph_dir = "{graph_dir}"\n'
-            '[github]\norgs = ["ignored"]\n',
+            '[github]\norgs = ["containers", "redhat"]\n'
+            'repos = ["myorg/tool"]\n',
             encoding="utf-8",
         )
         exit_code, _, _ = run_cli(
-            "--config",
-            str(config),
-            "github",
-            "--todo",
-            "--org",
-            "containers",
-            "--org",
-            "redhat",
+            "--config", str(config), "todo", "--source", "github",
         )
         assert exit_code == 0
-        call_kwargs = mock_fetch.call_args.kwargs
-        assert call_kwargs["orgs"] == ["containers", "redhat"]
+        kw = mock_fetch.call_args.kwargs
+        assert kw["orgs"] == ["containers", "redhat"]
+        assert kw["repos"] == ["myorg/tool"]
 
-    @patch(
-        "notegraph.cli.github_api.fetch_todo",
-        return_value=_MOCK_TODO_ITEMS,
-    )
-    def test_cli_repo_overrides_config(self, mock_fetch, tmp_path):
-        """CLI --repo overrides config repos entirely."""
+    @patch("notegraph.cli.github_api.fetch_todo", return_value=_MOCK_TODO_ITEMS)
+    def test_multiple_orgs(self, mock_fetch, tmp_path):
         config = tmp_path / "cfg.toml"
-        graph_dir = tmp_path / "logseq_pages"
-        graph_dir.mkdir()
-        config.write_text(
-            f'[logseq]\ngraph_dir = "{graph_dir}"\n'
-            '[github]\nrepos = ["old/repo"]\n',
-            encoding="utf-8",
-        )
-        exit_code, _, _ = run_cli(
-            "--config",
-            str(config),
-            "github",
-            "--todo",
-            "--repo",
-            "new/repo",
-        )
-        assert exit_code == 0
-        call_kwargs = mock_fetch.call_args.kwargs
-        assert call_kwargs["repos"] == ["new/repo"]
-
-    @patch(
-        "notegraph.cli.github_api.fetch_todo",
-        return_value=_MOCK_TODO_ITEMS,
-    )
-    def test_cli_multiple_repos_override_config(self, mock_fetch, tmp_path):
-        """Multiple --repo flags override config and are all passed through."""
-        config = tmp_path / "cfg.toml"
-        graph_dir = tmp_path / "logseq_pages"
-        graph_dir.mkdir()
-        config.write_text(
-            f'[logseq]\ngraph_dir = "{graph_dir}"\n'
-            '[github]\nrepos = ["ignored/x"]\n',
-            encoding="utf-8",
-        )
-        exit_code, _, _ = run_cli(
-            "--config",
-            str(config),
-            "github",
-            "--todo",
-            "--repo",
-            "a/b",
-            "--repo",
-            "c/d",
-        )
-        assert exit_code == 0
-        call_kwargs = mock_fetch.call_args.kwargs
-        assert call_kwargs["repos"] == ["a/b", "c/d"]
-
-    @patch(
-        "notegraph.cli.github_api.fetch_todo",
-        return_value=_MOCK_TODO_ITEMS,
-    )
-    def test_cli_org_and_repo_both_override_config(self, mock_fetch, tmp_path):
-        """CLI --org + --repo together override both config fields."""
-        config = tmp_path / "cfg.toml"
-        graph_dir = tmp_path / "logseq_pages"
-        graph_dir.mkdir()
-        config.write_text(
-            f'[logseq]\ngraph_dir = "{graph_dir}"\n'
-            '[github]\norgs = ["cfg-org"]\nrepos = ["cfg/repo"]\n',
-            encoding="utf-8",
-        )
-        exit_code, _, _ = run_cli(
-            "--config",
-            str(config),
-            "github",
-            "--todo",
-            "--org",
-            "cli-org1",
-            "--org",
-            "cli-org2",
-            "--repo",
-            "cli/repo",
-        )
-        assert exit_code == 0
-        call_kwargs = mock_fetch.call_args.kwargs
-        assert call_kwargs["orgs"] == ["cli-org1", "cli-org2"]
-        assert call_kwargs["repos"] == ["cli/repo"]
-
-    def test_todo_no_scope_anywhere_errors(self, tmp_path):
-        """--todo with no CLI flags and no config orgs/repos errors."""
-        config = tmp_path / "cfg.toml"
-        graph_dir = tmp_path / "logseq_pages"
+        graph_dir = tmp_path / "pages"
         graph_dir.mkdir()
         config.write_text(
             f'[logseq]\ngraph_dir = "{graph_dir}"\n',
             encoding="utf-8",
         )
-        exit_code, _, stderr = run_cli(
-            "--config",
-            str(config),
-            "github",
-            "--todo",
+        exit_code, _, _ = run_cli(
+            "--config", str(config), "todo", "--source", "github",
+            "--org", "containers", "--org", "redhat",
         )
-        assert exit_code != 0
-        assert "--org or --repo" in stderr
+        assert exit_code == 0
+        assert mock_fetch.call_args.kwargs["orgs"] == ["containers", "redhat"]
+
+    @patch("notegraph.cli.github_api.fetch_todo", return_value=_MOCK_TODO_ITEMS)
+    def test_repo_filter(self, mock_fetch, tmp_path):
+        config = tmp_path / "cfg.toml"
+        graph_dir = tmp_path / "pages"
+        graph_dir.mkdir()
+        config.write_text(
+            f'[logseq]\ngraph_dir = "{graph_dir}"\n',
+            encoding="utf-8",
+        )
+        exit_code, _, _ = run_cli(
+            "--config", str(config), "todo", "--source", "github",
+            "--repo", "o/r",
+        )
+        assert exit_code == 0
+        assert mock_fetch.call_args.kwargs["repos"] == ["o/r"]
+
+
+class TestTodoJira:
+    @patch("notegraph.cli.jira_api.fetch_todo", return_value=_MOCK_JIRA_TODO_ITEMS)
+    def test_plain_output(self, mock_fetch, tmp_path):
+        config = tmp_path / "cfg.toml"
+        graph_dir = tmp_path / "pages"
+        graph_dir.mkdir()
+        config.write_text(
+            f'[logseq]\ngraph_dir = "{graph_dir}"\n'
+            '[jira]\nendpoint = "test.atlassian.net"\n'
+            'jql = "project = RUN"\n',
+            encoding="utf-8",
+        )
+        exit_code, stdout, _ = run_cli(
+            "--config", str(config), "todo", "--source", "jira",
+        )
+        assert exit_code == 0
+        lines = stdout.strip().splitlines()
+        assert len(lines) == 2
+        assert "RUN-100" in lines[0]
+
+    @patch("notegraph.cli.jira_api.fetch_todo", return_value=_MOCK_JIRA_TODO_ITEMS)
+    def test_json_output(self, mock_fetch, tmp_path):
+        config = tmp_path / "cfg.toml"
+        graph_dir = tmp_path / "pages"
+        graph_dir.mkdir()
+        config.write_text(
+            f'[logseq]\ngraph_dir = "{graph_dir}"\n'
+            '[jira]\nendpoint = "test.atlassian.net"\n'
+            'jql = "project = RUN"\n',
+            encoding="utf-8",
+        )
+        exit_code, stdout, _ = run_cli(
+            "--config", str(config), "todo", "--source", "jira", "--json",
+        )
+        assert exit_code == 0
+        data = json.loads(stdout)
+        assert len(data) == 2
+        assert data[0]["source"] == "jira"
+
+    @patch("notegraph.cli.jira_api.fetch_todo", return_value=_MOCK_JIRA_TODO_ITEMS)
+    def test_cli_jql_overrides_config(self, mock_fetch, tmp_path):
+        config = tmp_path / "cfg.toml"
+        graph_dir = tmp_path / "pages"
+        graph_dir.mkdir()
+        config.write_text(
+            f'[logseq]\ngraph_dir = "{graph_dir}"\n'
+            '[jira]\nendpoint = "test.atlassian.net"\n'
+            'jql = "project = FROMCONF"\n',
+            encoding="utf-8",
+        )
+        exit_code, _, _ = run_cli(
+            "--config", str(config), "todo", "--source", "jira",
+            "--jql", "assignee = me",
+        )
+        assert exit_code == 0
+        assert mock_fetch.call_args.kwargs["jql"] == "assignee = me"
+
+    @patch("notegraph.cli.jira_api.fetch_todo", return_value=_MOCK_JIRA_TODO_ITEMS)
+    def test_config_jql_used_when_no_cli_flag(self, mock_fetch, tmp_path):
+        config = tmp_path / "cfg.toml"
+        graph_dir = tmp_path / "pages"
+        graph_dir.mkdir()
+        config.write_text(
+            f'[logseq]\ngraph_dir = "{graph_dir}"\n'
+            '[jira]\nendpoint = "test.atlassian.net"\n'
+            'jql = "project = FROMCONF"\n',
+            encoding="utf-8",
+        )
+        exit_code, _, _ = run_cli(
+            "--config", str(config), "todo", "--source", "jira",
+        )
+        assert exit_code == 0
+        assert mock_fetch.call_args.kwargs["jql"] == "project = FROMCONF"
+
+    @patch("notegraph.cli.jira_api.fetch_todo", return_value=[])
+    def test_empty_jql_returns_empty(self, mock_fetch, sample_config_toml):
+        exit_code, stdout, _ = run_cli(
+            "--config", str(sample_config_toml), "todo", "--source", "jira",
+        )
+        assert exit_code == 0
+        assert stdout.strip() == ""
+
+
+class TestTodoBothSources:
+    @patch("notegraph.cli.jira_api.fetch_todo", return_value=_MOCK_JIRA_TODO_ITEMS)
+    @patch("notegraph.cli.github_api.fetch_todo", return_value=_MOCK_TODO_ITEMS)
+    def test_both_sources_by_default(self, mock_gh, mock_jira, tmp_path):
+        config = tmp_path / "cfg.toml"
+        graph_dir = tmp_path / "pages"
+        graph_dir.mkdir()
+        config.write_text(
+            f'[logseq]\ngraph_dir = "{graph_dir}"\n'
+            '[github]\norgs = ["o"]\n'
+            '[jira]\nendpoint = "test.atlassian.net"\n'
+            'jql = "project = RUN"\n',
+            encoding="utf-8",
+        )
+        exit_code, stdout, _ = run_cli(
+            "--config", str(config), "todo",
+        )
+        assert exit_code == 0
+        lines = stdout.strip().splitlines()
+        assert len(lines) == 4
+        mock_gh.assert_called_once()
+        mock_jira.assert_called_once()
+
+    @patch("notegraph.cli.jira_api.fetch_todo", return_value=[])
+    @patch("notegraph.cli.github_api.fetch_todo", return_value=[])
+    def test_both_empty(self, mock_gh, mock_jira, tmp_path):
+        config = tmp_path / "cfg.toml"
+        graph_dir = tmp_path / "pages"
+        graph_dir.mkdir()
+        config.write_text(
+            f'[logseq]\ngraph_dir = "{graph_dir}"\n'
+            '[github]\norgs = ["o"]\n'
+            '[jira]\nendpoint = "test.atlassian.net"\n'
+            'jql = "project = RUN"\n',
+            encoding="utf-8",
+        )
+        exit_code, stdout, _ = run_cli(
+            "--config", str(config), "todo",
+        )
+        assert exit_code == 0
+        assert stdout.strip() == ""
+
+
+class TestTodoSync:
+    @patch("notegraph.cli.writer.write")
+    @patch("notegraph.cli.github_api.fetch", return_value=_MOCK_GH_CONTENT)
+    @patch("notegraph.cli.github_api.fetch_todo", return_value=_MOCK_TODO_ITEMS)
+    def test_sync_writes_worktodo_and_notes(
+        self, mock_todo, mock_fetch, mock_write, tmp_path
+    ):
+        config = tmp_path / "cfg.toml"
+        graph_dir = tmp_path / "pages"
+        graph_dir.mkdir()
+        config.write_text(
+            f'[logseq]\ngraph_dir = "{graph_dir}"\n'
+            '[github]\norgs = ["o"]\n',
+            encoding="utf-8",
+        )
+        exit_code, _, stderr = run_cli(
+            "--config", str(config), "todo", "--source", "github", "--sync",
+        )
+        assert exit_code == 0
+        assert "worktodo.md" in stderr
+
+        worktodo = graph_dir / "worktodo.md"
+        assert worktodo.is_file()
+        text = worktodo.read_text(encoding="utf-8")
+        assert "github.com/o/r/pull/1" in text
+        assert "github.com/o/r/issues/2" in text
+
+        assert mock_fetch.call_count == 2
+
+    @patch("notegraph.cli.writer.write")
+    @patch("notegraph.cli.github_api.fetch", side_effect=ValueError("bad url"))
+    @patch("notegraph.cli.github_api.fetch_todo", return_value=_MOCK_TODO_ITEMS)
+    def test_sync_skips_on_error(self, mock_todo, mock_fetch, mock_write, tmp_path):
+        config = tmp_path / "cfg.toml"
+        graph_dir = tmp_path / "pages"
+        graph_dir.mkdir()
+        config.write_text(
+            f'[logseq]\ngraph_dir = "{graph_dir}"\n'
+            '[github]\norgs = ["o"]\n',
+            encoding="utf-8",
+        )
+        exit_code, _, _ = run_cli(
+            "--config", str(config), "todo", "--source", "github", "--sync",
+        )
+        assert exit_code == 0
+
+        worktodo = graph_dir / "worktodo.md"
+        assert worktodo.is_file()
 
 
 # ---------------------------------------------------------------------------
