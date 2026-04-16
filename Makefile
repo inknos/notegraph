@@ -5,7 +5,7 @@ BUILDDIR      := build
 RULE_TEMPLATES := $(wildcard cursor/*.mdc.in)
 RULES_GEN      := $(patsubst cursor/%.mdc.in,$(BUILDDIR)/cursor/%.mdc,$(RULE_TEMPLATES))
 
-.PHONY: all cursor install install-cursor install-python check-vars clean test test-python lint fmt
+.PHONY: all cursor install install-cursor install-python check-vars clean test test-python lint fmt docs man
 
 all: check-vars cursor ## Build generated files (default)
 
@@ -43,6 +43,12 @@ lint: ## Run ruff linter and formatter check
 fmt: ## Auto-format with ruff
 	uv run ruff check --fix notegraph/ tests/
 	uv run ruff format notegraph/ tests/
+
+docs: ## Build HTML documentation
+	uv run sphinx-build -b html docs/ $(BUILDDIR)/docs/html
+
+man: ## Build man page
+	uv run sphinx-build -b man docs/ $(BUILDDIR)/docs/man
 
 clean: ## Remove build directory and workspace rules
 	rm -rf $(BUILDDIR) .cursor/rules/*.mdc

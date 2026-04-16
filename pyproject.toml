@@ -19,6 +19,10 @@ dev = [
     "pytest",
     "ruff",
 ]
+docs = [
+    "sphinx",
+    "sphinx-rtd-theme",
+]
 
 [project.scripts]
 notegraph = "notegraph.cli:main"
