@@ -11,6 +11,9 @@ extensions = [
 
 html_theme = "sphinx_rtd_theme"
 
+# Published on GitHub Pages (project site).
+html_baseurl = "https://inknos.github.io/notegraph/"
+
 man_pages = [
     ("index", "notegraph", "Note graph generator for GitHub and Jira issues", [""], 1),
 ]
