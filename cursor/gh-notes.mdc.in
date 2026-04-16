@@ -13,9 +13,9 @@ Any GitHub URL matching `https://github.com/{org}/{repo}/{issues|pull}/{number}`
 
 ## Workflow
 
-1. **Locate files.** Run `{{SCRIPT_DIR}}/gh-note.sh --check <url>` to get a JSON object with the paths and existence status of all three files (`md`, `note`, `cursor`).
+1. **Locate files.** Run `notegraph fetch --source github --check --json <url>` to get a JSON object with the paths and existence status of all three files (`md`, `note`, `cursor`).
 
-2. **Create if missing.** If any file has `"exists": false`, run `{{SCRIPT_DIR}}/gh-note.sh <url>` (no `--check`) to fetch from GitHub and create the missing files.
+2. **Create if missing.** If any file has `"exists": false`, run `notegraph fetch --source github <url>` to fetch from GitHub and create the missing files.
 
 3. **Read the summary.** Read the `md` file (`N.md`). It contains the title, description, raw comments, and a Key Discussion Points section. Use this as your primary context about the issue/PR.
 
@@ -29,17 +29,22 @@ Any GitHub URL matching `https://github.com/{org}/{repo}/{issues|pull}/{number}`
 
    Keep the file concise and actionable. Update it every time you work on this issue/PR.
 
-## Script reference
+## CLI reference
 
-`{{SCRIPT_DIR}}/gh-note.sh [--check] [-d <dir>] <github-url>`
+`notegraph fetch --source github [OPTIONS] <github-url>`
 
 | Flag | Effect |
 |------|--------|
 | (none) | Fetch from GitHub and create missing files |
-| `--check` | Print JSON with file paths and existence, no network calls |
-| `-d <dir>` | Override target directory (default: `~/Documents/Logseq/Work/pages`) |
+| `--check` | Show file paths and existence (table format) |
+| `--check --json` | Show file paths and existence (JSON format) |
+| `--replace` | Overwrite existing note/cursor files |
+| `--summary` | Only create the summary (md) file |
+| `--note` | Only create the user-notes file |
+| `--analysis` | Only create the agent-analysis (cursor) file |
+| `--dest-dir DIR` | Override output directory |
 
-The `--check` output looks like:
+The `--check --json` output looks like:
 
 ```json
 {
@@ -53,6 +58,6 @@ The `--check` output looks like:
 
 | File | Owner | Purpose |
 |------|-------|---------|
-| `N.md` | Script | Auto-populated summary, description, and raw comments from GitHub |
+| `N.md` | Tool | Auto-populated summary, description, and raw comments from GitHub |
 | `N-note.md` | User | User's personal working notes -- **read-only for the agent** |
 | `N-cursor.md` | Agent | Agent's analysis, TODOs, and notes -- **agent writes here** |

@@ -20,8 +20,8 @@ Items are Logseq wikilinks: `- [[github.com/org/repo/pull/123]] title (**status*
 1. **Read** `~/Documents/Logseq/Work/pages/worktodo.md`.
 2. **Show Focus items** and ask which one to work on (or suggest the most stale / most urgent).
 3. **Get context** on the chosen item:
-   - GitHub URL → run `{{SCRIPT_DIR}}/gh-note.sh --check <url>`, then read the `.md` and `-note.md` files. Create missing files if needed (run without `--check`).
-   - Jira key → run `{{SCRIPT_DIR}}/jira-note.sh --check <KEY>`, then read the `.md` and `-note.md` files. Create missing files if needed.
+   - GitHub URL → run `notegraph fetch --source github --check --json <url>`, then read the `.md` and `-note.md` files. Create missing files if needed (run `notegraph fetch --source github <url>`).
+   - Jira key → run `notegraph fetch --source jira --check --json <KEY>`, then read the `.md` and `-note.md` files. Create missing files if needed (run `notegraph fetch --source jira <KEY>`).
 4. **Write analysis** to the `-cursor.md` file (see `gh-notes.mdc` for the full protocol).
 5. **Proceed** with the work — code changes, PR comments, review, etc.
 
@@ -39,7 +39,7 @@ When the user asks to triage:
 To sync with GitHub/Jira, run:
 
 ```
-{{SCRIPT_DIR}}/todo-page.sh --org <org> [--repo <owner/repo>] [--sync]
+notegraph todo --sync [--org <org>] [--repo <owner/repo>]
 ```
 
-The `--sync` flag also refreshes individual note pages. The user's Focus/Backlog ordering is preserved; new items land in Incoming.
+The `--sync` flag writes `worktodo.md` and fetches note triplets for each item. The user's Focus/Backlog ordering is preserved; new items land in Incoming.

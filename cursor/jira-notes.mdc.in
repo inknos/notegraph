@@ -13,11 +13,11 @@ Any Jira URL matching `https://{{JIRA_ENDPOINT}}/browse/<KEY>`, or a bare Jira k
 
 ## Workflow
 
-1. **Locate files.** Run `{{SCRIPT_DIR}}/jira-note.sh --check <KEY>` to get a JSON object with the paths and existence status of the md, note, and cursor files.
+1. **Locate files.** Run `notegraph fetch --source jira --check --json <KEY>` to get a JSON object with the paths and existence status of the md, note, and cursor files.
 
-2. **Create if missing.** If any file has `"exists": false`, run `{{SCRIPT_DIR}}/jira-note.sh <KEY>` (no `--check`) to fetch from Jira and create the files. For Epics this also creates files for all child issues and chains into `gh-note.sh` for linked GitHub PRs.
+2. **Create if missing.** If any file has `"exists": false`, run `notegraph fetch --source jira <KEY>` to fetch from Jira and create the files. If the issue has a linked GitHub PR (via a Jira custom field), the linked PR's note files are also created automatically.
 
-3. **Read the summary.** Read the `md` file. For a regular issue it contains the title, description, status, and comments. For an Epic it also lists all children with wikilinks and status indicators.
+3. **Read the summary.** Read the `md` file. It contains the title, description, status, and comments.
 
 4. **Read the user's notes (read-only).** Read the `note` file if it exists. These are the user's personal notes, TODOs, and related links. **Never modify this file** -- it belongs to the user.
 
@@ -29,19 +29,22 @@ Any Jira URL matching `https://{{JIRA_ENDPOINT}}/browse/<KEY>`, or a bare Jira k
 
    Keep the file concise and actionable. Update it every time you work on this issue.
 
-6. **Epic awareness.** If the issue is an Epic, the script will have created files for all child issues. Read the epic md to see the children list, then read and write the relevant child cursor files as needed.
+## CLI reference
 
-## Script reference
-
-`{{SCRIPT_DIR}}/jira-note.sh [--check] [-d <dir>] <ISSUE-KEY>`
+`notegraph fetch --source jira [OPTIONS] <ISSUE-KEY>`
 
 | Flag | Effect |
 |------|--------|
-| (none) | Fetch from Jira and create/update files |
-| `--check` | Print JSON with file paths and existence, no network calls |
-| `-d <dir>` | Override target directory (default: `~/Documents/Logseq/Work/pages`) |
+| (none) | Fetch from Jira and create missing files |
+| `--check` | Show file paths and existence (table format) |
+| `--check --json` | Show file paths and existence (JSON format) |
+| `--replace` | Overwrite existing note/cursor files |
+| `--summary` | Only create the summary (md) file |
+| `--note` | Only create the user-notes file |
+| `--analysis` | Only create the agent-analysis (cursor) file |
+| `--dest-dir DIR` | Override output directory |
 
-The `--check` output looks like:
+The `--check --json` output looks like:
 
 ```json
 {
@@ -55,8 +58,6 @@ The `--check` output looks like:
 
 | File | Owner | Purpose |
 |------|-------|---------|
-| `KEY.md` | Script | Auto-populated summary, description, comments, and children list (always regenerated on re-run) |
+| `KEY.md` | Tool | Auto-populated summary, description, and comments |
 | `KEY___note.md` | User | User's personal working notes -- **read-only for the agent** |
 | `KEY___cursor.md` | Agent | Agent's analysis, TODOs, and notes -- **agent writes here** |
-
-Note: Closed non-epic issues are skipped entirely. Epic children that are Closed only get an md file (no note or cursor). Only open issues get the full triplet.
