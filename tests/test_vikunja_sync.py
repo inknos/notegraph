@@ -10,6 +10,7 @@ from notegraph.schema import TodoItem
 from notegraph.vikunja_sync import (
     VikunjaClient,
     _canonical_sync_id,
+    _default_due_date,
     _extract_sync_id,
     _github_sync_slug,
     _jira_sync_slug,
@@ -157,3 +158,20 @@ class TestVikunjaClientIterTasks:
         assert len(tasks) == 1
         session.get.assert_called_once()
         assert session.get.call_args[0][0].endswith("/tasks")
+
+
+class TestDefaultDueDate:
+    def test_adds_seven_days(self) -> None:
+        assert _default_due_date("2026-04-27T00:00:00Z") == "2026-05-04T00:00:00Z"
+
+    def test_month_rollover(self) -> None:
+        assert _default_due_date("2026-01-28T00:00:00Z") == "2026-02-04T00:00:00Z"
+
+    def test_year_rollover(self) -> None:
+        assert _default_due_date("2025-12-29T00:00:00Z") == "2026-01-05T00:00:00Z"
+
+    def test_empty_returns_empty(self) -> None:
+        assert _default_due_date("") == ""
+
+    def test_invalid_returns_empty(self) -> None:
+        assert _default_due_date("not-a-date") == ""

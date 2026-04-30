@@ -18,6 +18,7 @@ not include Logseq files — run ``todo --sync`` for note triplets.
 
 from __future__ import annotations
 
+import datetime
 import logging
 import os
 import re
@@ -55,11 +56,30 @@ _DATE_ONLY_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _VIKUNJA_ZERO_DATE = "0001-01-01T00:00:00Z"
 
 
+_DUE_DATE_OFFSET = datetime.timedelta(days=7)
+
+
 def _normalize_vikunja_date(value: str) -> str:
     """Convert bare ``YYYY-MM-DD`` to ``YYYY-MM-DDT00:00:00Z`` for Vikunja."""
     if _DATE_ONLY_RE.match(value):
         return f"{value}T00:00:00Z"
     return value
+
+
+def _default_due_date(start_iso: str) -> str:
+    """Return *start_iso* + 7 days in Vikunja datetime format.
+
+    *start_iso* must already be normalized (``YYYY-MM-DDTHH:MM:SSZ``).
+    Returns ``""`` when the input is empty or unparseable.
+    """
+    if not start_iso:
+        return ""
+    try:
+        dt = datetime.datetime.fromisoformat(start_iso.replace("Z", "+00:00"))
+    except ValueError:
+        return ""
+    due = dt + _DUE_DATE_OFFSET
+    return due.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def _split_github_org_repo(full: str) -> tuple[str, str]:
@@ -511,6 +531,7 @@ def _upsert_project_items(
             want_start = _normalize_vikunja_date((item.start_date or "").strip())
             if want_start == _VIKUNJA_ZERO_DATE:
                 want_start = ""
+            want_due = _default_due_date(want_start)
             task_payload: dict[str, Any] = {
                 "title": item.title,
                 "description": item.description,
@@ -518,18 +539,24 @@ def _upsert_project_items(
             }
             if want_start:
                 task_payload["start_date"] = want_start
+            if want_due:
+                task_payload["due_date"] = want_due
             if item.sync_id in existing:
                 current = existing[item.sync_id]
                 tid = int(current["id"])
                 cur_title = current.get("title")
                 cur_desc = current.get("description") or ""
                 cur_start = (current.get("start_date") or "").strip()
+                cur_due = (current.get("due_date") or "").strip()
                 if cur_start == _VIKUNJA_ZERO_DATE:
                     cur_start = ""
+                if cur_due == _VIKUNJA_ZERO_DATE:
+                    cur_due = ""
                 needs_update = (
                     cur_title != item.title
                     or cur_desc != item.description
                     or cur_start != want_start
+                    or cur_due != want_due
                 )
                 if needs_update:
                     update_body: dict[str, Any] = {
@@ -541,6 +568,8 @@ def _upsert_project_items(
                     }
                     if want_start:
                         update_body["start_date"] = want_start
+                    if want_due:
+                        update_body["due_date"] = want_due
                     logger.debug(
                         "Update task id=%s sync_id=%s project=%r",
                         tid,

@@ -204,13 +204,20 @@ def _browse_issue_key(url: str) -> str | None:
 
 
 def _jira_assignment_start_iso(payload: dict[str, Any]) -> str:
-    """``YYYY-MM-DD`` when the current assignee was last set, else issue creation day."""
+    """``YYYY-MM-DD`` when the current assignee was last set, or ``""`` if unassigned.
+
+    Returns the date of the most recent changelog entry that assigned the
+    **current** assignee.  Falls back to the issue creation date only when there
+    *is* a current assignee but no matching changelog entry (i.e. the person was
+    the original assignee at creation time).  Returns ``""`` when the issue has
+    no assignee so that unassigned items do not get a spurious start/due date.
+    """
     fields = payload.get("fields") or {}
     created = (fields.get("created") or "")[:10]
     assignee = fields.get("assignee")
     account_id = assignee.get("accountId") if isinstance(assignee, dict) else None
     if not account_id:
-        return created
+        return ""
     latest: str | None = None
     changelog = payload.get("changelog") or {}
     for hist in changelog.get("histories", []):
@@ -230,15 +237,15 @@ def _enrich_jira_todo_start_dates(
     endpoint: str,
     items: list[TodoItem],
 ) -> list[TodoItem]:
-    """Set ``start_date`` from assignee changelog (fallback: ``created_at``)."""
+    """Set ``start_date`` from assignee changelog; unassigned items get no date."""
     out: list[TodoItem] = []
     for item in items:
         key = _browse_issue_key(item.url)
         if not key:
-            out.append(item.model_copy(update={"start_date": item.created_at}))
+            out.append(item)
             continue
         detail_url = f"https://{endpoint}/rest/api/{_API_VERSION}/issue/{key}"
-        iso = item.created_at
+        iso = ""
         try:
             resp = session.get(
                 detail_url,
@@ -248,9 +255,7 @@ def _enrich_jira_todo_start_dates(
                 resp.raise_for_status()
             except requests.HTTPError as exc:
                 raise FetchError(resp.status_code, resp.text) from exc
-            parsed = _jira_assignment_start_iso(resp.json())
-            if parsed:
-                iso = parsed
+            iso = _jira_assignment_start_iso(resp.json())
         except FetchError as exc:
             logger.debug("Jira issue %s detail: %s", key, exc)
         out.append(item.model_copy(update={"start_date": iso}))

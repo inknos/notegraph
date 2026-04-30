@@ -286,7 +286,12 @@ def _apply_github_issue_start_dates(
     username: str,
     items: list[TodoItem],
 ) -> list[TodoItem]:
-    """Set ``start_date`` on issues via assignment timeline; PRs already use creation date."""
+    """Set ``start_date`` on issues via assignment timeline; PRs already use creation date.
+
+    Issues get a ``start_date`` only when an assignment to *username* is found
+    in the timeline; otherwise the field stays empty so that unassigned items
+    do not receive a spurious due date.
+    """
     out: list[TodoItem] = []
     for item in items:
         if item.kind == "pull_request":
@@ -311,8 +316,7 @@ def _apply_github_issue_start_dates(
                     m["num"],
                     exc,
                 )
-        start = assigned or item.created_at
-        out.append(item.model_copy(update={"start_date": start}))
+        out.append(item.model_copy(update={"start_date": assigned or ""}))
     return out
 
 
