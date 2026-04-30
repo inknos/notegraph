@@ -9,7 +9,7 @@ Global options (before the subcommand):
 
     --config PATH         Path to TOML config file
                           (default: ~/.config/notegraph/config.toml).
-    -v, --verbose         Debug logging for all commands.
+    -v, --verbose         Debug logging for notegraph (HTTP libraries stay at WARNING).
     --dry-run             Preview without writing notes/worktodo or Vikunja mutations.
 
 ``fetch`` options:
@@ -77,6 +77,7 @@ from notegraph import jira as jira_api
 from notegraph import writer
 from notegraph.github import FetchError as GitHubFetchError
 from notegraph.jira import FetchError as JiraFetchError
+from notegraph.logutil import configure_cli_logging
 from notegraph.schema import (
     FileKind,
     GitHubRef,
@@ -244,7 +245,7 @@ def launcher(
     ] = DEFAULT_CONFIG_PATH,
     verbose: Annotated[
         bool,
-        Parameter("--verbose", alias="-v", help="Enable debug logging."),
+        Parameter("--verbose", alias="-v", help="Enable DEBUG logs for notegraph.*"),
     ] = False,
     dry_run: Annotated[
         bool,
@@ -259,11 +260,7 @@ def launcher(
     _cfg = load_config(config)
     _config_path = config
     _cli_dry_run = dry_run
-    logging.basicConfig(
-        level=logging.DEBUG if verbose else logging.INFO,
-        format="%(levelname)s %(message)s",
-        force=True,
-    )
+    configure_cli_logging(verbose=verbose)
     app(tokens)
 
 
@@ -639,6 +636,7 @@ def _sync_worktodo(
     write_worktodo(merged, worktodo_path)
     sys.stderr.write(f"Wrote {worktodo_path}\n")
 
+    logger.info("Fetching note triplets for %s todo item(s).", len(items))
     for item in items:
         try:
             if item.source == "github":

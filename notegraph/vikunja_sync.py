@@ -9,6 +9,11 @@ hidden HTML marker in the description using a stable slug id (e.g.
 Legacy markers ``github:owner/repo#N`` / ``jira:KEY`` normalize when read so
 existing tasks still match. Each sync updates Vikunja when title, description, or
 start date differs; stale upstream items can be marked done.
+
+**Vikunja task titles** are stable identifiers only: Jira **issue keys** (e.g.
+``RUN-3555``) and GitHub **sync slugs** (``github-org-repo-issue-N`` /
+``…-pull-N``). Human summaries appear in the task description. Descriptions do
+not include Logseq files — run ``todo --sync`` for note triplets.
 """
 
 from __future__ import annotations
@@ -18,6 +23,7 @@ import os
 import re
 from collections import defaultdict
 from dataclasses import dataclass
+from http import HTTPStatus
 from typing import TYPE_CHECKING, Any
 
 import requests
@@ -44,6 +50,16 @@ _LEGACY_MARKER_JIRA = re.compile(r"^jira:([A-Za-z][A-Za-z0-9]*-\d+)$")
 _DEFAULT_JIRA_JQL = "assignee = currentUser() AND resolution = Unresolved ORDER BY updated DESC"
 _DEFAULT_GITHUB_PROJECT_TEMPLATE = "{repo}"
 _DEFAULT_JIRA_PROJECT_TEMPLATE = "{project_key}"
+
+_DATE_ONLY_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+_VIKUNJA_ZERO_DATE = "0001-01-01T00:00:00Z"
+
+
+def _normalize_vikunja_date(value: str) -> str:
+    """Convert bare ``YYYY-MM-DD`` to ``YYYY-MM-DDT00:00:00Z`` for Vikunja."""
+    if _DATE_ONLY_RE.match(value):
+        return f"{value}T00:00:00Z"
+    return value
 
 
 def _split_github_org_repo(full: str) -> tuple[str, str]:
@@ -127,6 +143,14 @@ def _normalize_vikunja_token(raw: str) -> str:
 
 def _vikunja_require_ok(response: requests.Response) -> None:
     """Raise :exc:`requests.HTTPError` on failed Vikunja responses."""
+    if not response.ok:
+        logger.error(
+            "Vikunja %s %s → %s: %s",
+            response.request.method,
+            response.request.url,
+            response.status_code,
+            response.text[:500],
+        )
     response.raise_for_status()
 
 
@@ -167,19 +191,21 @@ def _waiting_from_jira_todo(item: TodoItem, *, project_template: str) -> Waiting
     project = item.repo or "UNKNOWN"
     sync_id = _jira_sync_slug(key)
     marker = _sync_marker(sync_id)
+    summary = str(item.title).strip()
+    summary_block = f"\n**Summary:** {summary}\n\n" if summary else "\n"
     description = (
         f"{marker}\n\n"
-        f"[{key}]({item.url})\n\n"
+        f"[{key}]({item.url})"
+        f"{summary_block}"
         f"**Status:** {item.state} · **Type:** {item.kind}\n"
     )
-    title = str(item.title).strip() or key
     vik_title = _format_vikunja_project_title(
         project_template,
         {"project_key": project, "issue_key": key},
     )
     return WaitingItem(
         sync_id=sync_id,
-        title=title[:500],
+        title=key[:500],
         description=description,
         vikunja_project_title=vik_title,
         start_date=(item.start_date or "").strip(),
@@ -203,10 +229,12 @@ def _waiting_from_github_todo(item: TodoItem, *, project_template: str) -> Waiti
     )
     marker = _sync_marker(sync_id)
     kind_label = "Pull request" if item.kind == "pull_request" else "Issue"
-    title = str(item.title).strip() or sync_id
+    summary = str(item.title).strip()
+    summary_block = f"\n**Summary:** {summary}\n\n" if summary else "\n"
     description = (
         f"{marker}\n\n"
-        f"[{title}]({item.url})\n\n"
+        f"[{sync_id}]({item.url})"
+        f"{summary_block}"
         f"**{kind_label}** · **Repo:** `{item.repo}` · **State:** {item.state}\n"
     )
     org, repo_name = _split_github_org_repo(item.repo)
@@ -216,7 +244,7 @@ def _waiting_from_github_todo(item: TodoItem, *, project_template: str) -> Waiti
     )
     return WaitingItem(
         sync_id=sync_id,
-        title=title[:500],
+        title=sync_id[:500],
         description=description,
         vikunja_project_title=vik_title,
         start_date=(item.start_date or "").strip(),
@@ -300,6 +328,7 @@ class VikunjaClient:
     ) -> None:
         """Initialize with API root (``…/api/v1``) and bearer token."""
         self.base = base_api.rstrip("/")
+        self._projects_cache: list[dict[str, Any]] | None = None
         self.session = session or requests.Session()
         self.session.headers.update(
             {
@@ -315,11 +344,15 @@ class VikunjaClient:
         _vikunja_require_ok(response)
 
     def list_projects(self) -> list[dict[str, Any]]:
-        """Return all projects visible to the token."""
+        """Return all projects visible to the token (cached after first call)."""
+        if self._projects_cache is not None:
+            return self._projects_cache
         response = self.session.get(f"{self.base}/projects", timeout=60)
         _vikunja_require_ok(response)
         data = response.json()
-        return data if isinstance(data, list) else []
+        self._projects_cache = data if isinstance(data, list) else []
+        logger.debug("Loaded %s Vikunja project(s).", len(self._projects_cache))
+        return self._projects_cache
 
     def ensure_project(self, title: str, *, dry_run: bool) -> int | None:
         """Return project id, creating the project if needed."""
@@ -329,6 +362,7 @@ class VikunjaClient:
         if dry_run:
             logger.info("Would create Vikunja project %r", title)
             return None
+        logger.debug("Creating Vikunja project %r", title)
         response = self.session.put(
             f"{self.base}/projects",
             json={"title": title, "parent_project_id": 0},
@@ -336,21 +370,54 @@ class VikunjaClient:
         )
         _vikunja_require_ok(response)
         created = response.json()
-        return int(created["id"])
+        pid = int(created["id"])
+        self._projects_cache = None
+        return pid
 
     def iter_tasks(self, *, per_page: int = 100) -> list[dict[str, Any]]:
-        """Paginate through all tasks the user can see."""
+        """Paginate through all tasks the user can see.
+
+        Tries ``GET /tasks`` first. If the server returns 404, falls back to
+        ``GET /tasks/all`` (older Vikunja, see `go-vikunja/vikunja#1984`).
+        An empty list from ``/tasks`` is accepted as-is — no fallback needed.
+        """
+        try:
+            return self._fetch_paginated_task_list("/tasks", per_page=per_page)
+        except requests.HTTPError as exc:
+            if exc.response is not None and exc.response.status_code == HTTPStatus.NOT_FOUND:
+                logger.debug("GET /tasks returned 404; trying legacy /tasks/all.")
+                return self._fetch_paginated_task_list("/tasks/all", per_page=per_page)
+            raise
+
+    def _fetch_paginated_task_list(
+        self,
+        path: str,
+        *,
+        per_page: int,
+        timeout: int = 30,
+    ) -> list[dict[str, Any]]:
+        """GET *path* with ``page`` / ``per_page`` until a short page or empty."""
         page = 1
         out: list[dict[str, Any]] = []
         while True:
+            logger.debug("GET %s page=%s per_page=%s", path, page, per_page)
             response = self.session.get(
-                f"{self.base}/tasks",
+                f"{self.base}{path}",
                 params={"page": page, "per_page": per_page},
-                timeout=120,
+                timeout=timeout,
             )
             _vikunja_require_ok(response)
             batch = response.json()
-            if not isinstance(batch, list) or not batch:
+            if batch is None:
+                batch = []
+            if not isinstance(batch, list):
+                logger.warning(
+                    "Unexpected JSON from %s (wanted list, got %s); stopping pagination.",
+                    path,
+                    type(batch).__name__,
+                )
+                break
+            if not batch:
                 break
             out.extend(batch)
             if len(batch) < per_page:
@@ -424,16 +491,27 @@ def _upsert_project_items(
     tasks_by_project: dict[int, dict[str, dict[str, Any]]],
     *,
     dry_run: bool,
-) -> None:
-    """Create or update Vikunja tasks for each waiting item."""
+) -> tuple[int, int, int]:
+    """Create or update Vikunja tasks for each waiting item.
+
+    Returns:
+        Counts ``(created, updated, unchanged)``.
+    """
+    created = updated = unchanged = 0
     for project_title, bucket in by_project.items():
         pid = project_ids.get(project_title)
         if pid is None:
+            logger.debug(
+                "Skipping project %r (no Vikunja project id — often dry-run create).",
+                project_title,
+            )
             continue
         existing = tasks_by_project.get(pid, {})
         for item in bucket:
-            want_start = (item.start_date or "").strip()
-            task_payload = {
+            want_start = _normalize_vikunja_date((item.start_date or "").strip())
+            if want_start == _VIKUNJA_ZERO_DATE:
+                want_start = ""
+            task_payload: dict[str, Any] = {
                 "title": item.title,
                 "description": item.description,
                 "done": False,
@@ -446,23 +524,47 @@ def _upsert_project_items(
                 cur_title = current.get("title")
                 cur_desc = current.get("description") or ""
                 cur_start = (current.get("start_date") or "").strip()
+                if cur_start == _VIKUNJA_ZERO_DATE:
+                    cur_start = ""
                 needs_update = (
                     cur_title != item.title
                     or cur_desc != item.description
                     or cur_start != want_start
                 )
                 if needs_update:
-                    update_body = {
+                    update_body: dict[str, Any] = {
                         "id": tid,
                         "title": item.title,
                         "description": item.description,
                         "done": bool(current.get("done")),
                         "project_id": pid,
-                        "start_date": want_start,
                     }
+                    if want_start:
+                        update_body["start_date"] = want_start
+                    logger.debug(
+                        "Update task id=%s sync_id=%s project=%r",
+                        tid,
+                        item.sync_id,
+                        project_title,
+                    )
                     client.update_task(tid, update_body, dry_run=dry_run)
+                    updated += 1
+                else:
+                    logger.debug(
+                        "Unchanged sync_id=%s project=%r",
+                        item.sync_id,
+                        project_title,
+                    )
+                    unchanged += 1
             else:
+                logger.debug(
+                    "Create task sync_id=%s project=%r",
+                    item.sync_id,
+                    project_title,
+                )
                 client.create_task(pid, task_payload, dry_run=dry_run)
+                created += 1
+    return created, updated, unchanged
 
 
 def _complete_stale_managed_tasks(
@@ -471,8 +573,9 @@ def _complete_stale_managed_tasks(
     current_ids: set[str],
     *,
     dry_run: bool,
-) -> None:
+) -> int:
     """Mark managed Vikunja tasks done when their sync id is no longer upstream."""
+    n_done = 0
     for task in managed_tasks:
         sid = _extract_sync_id(task.get("description") or "")
         if not sid:
@@ -490,6 +593,8 @@ def _complete_stale_managed_tasks(
         }
         logger.info("Completing stale managed task %s (%s)", tid, sid)
         client.update_task(tid, update_body, dry_run=dry_run)
+        n_done += 1
+    return n_done
 
 
 def run_sync(
@@ -501,6 +606,11 @@ def run_sync(
 ) -> int:
     """Run one sync pass. Returns a process exit code."""
     cfg = load_config(config_path)
+
+    logger.debug(
+        "Vikunja task titles are stable ids (issue key / github slug); summaries "
+        "and links live in the description. Logseq triplets need todo --sync.",
+    )
 
     vikunja_base = cfg.vikunja.base_url.strip().rstrip("/") or "http://127.0.0.1:3456"
     vikunja_api = f"{vikunja_base}/api/v1"
@@ -532,27 +642,54 @@ def run_sync(
     for item in (*jira_waiting, *github_waiting):
         by_project[item.vikunja_project_title].append(item)
 
+    logger.info(
+        "Resolving %s Vikunja project(s) from %s upstream item(s).",
+        len(by_project),
+        len(jira_waiting) + len(github_waiting),
+    )
     project_ids: dict[str, int] = {}
     for title in by_project:
         pid = client.ensure_project(title, dry_run=dry_run)
         if pid is not None:
             project_ids[title] = pid
 
+    logger.info("Fetching existing Vikunja tasks for dedup…")
     all_tasks = client.iter_tasks()
     tasks_by_project, managed_tasks = _build_task_indexes(all_tasks)
 
     current_ids = {item.sync_id for item in (*jira_waiting, *github_waiting)}
+    upstream_n = len(jira_waiting) + len(github_waiting)
+    logger.info(
+        "Indexed %s Vikunja task(s); %s upstream waiting row(s).",
+        len(all_tasks),
+        upstream_n,
+    )
 
-    _upsert_project_items(
+    created, updated, unchanged = _upsert_project_items(
         client,
         by_project,
         project_ids,
         tasks_by_project,
         dry_run=dry_run,
     )
+    logger.info(
+        "Vikunja upsert: %s created, %s updated, %s unchanged (dry-run=%s).",
+        created,
+        updated,
+        unchanged,
+        dry_run,
+    )
 
+    stale_done = 0
     if complete_stale:
-        _complete_stale_managed_tasks(client, managed_tasks, current_ids, dry_run=dry_run)
+        stale_done = _complete_stale_managed_tasks(
+            client,
+            managed_tasks,
+            current_ids,
+            dry_run=dry_run,
+        )
+        if stale_done:
+            logger.info("Marked %s stale mirror(s) done.", stale_done)
 
     logger.info("Sync finished.")
     return 0

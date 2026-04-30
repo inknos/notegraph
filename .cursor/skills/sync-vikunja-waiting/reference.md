@@ -1,5 +1,10 @@
 # sync-vikunja-waiting — reference
 
+## Notes vs Vikunja
+
+- **`todo --sync`** writes ``worktodo.md`` and fetches/writes Logseq **md / note / cursor** triplets from GitHub and Jira APIs.
+- **`todo --vikunja`** mirrors waiting items into Vikunja. **Task titles** are stable ids only (Jira issue key, GitHub sync slug like ``github-org-repo-issue-N``); the human summary is in the task description. It does **not** read or embed Logseq notes.
+
 ## Environment variables
 
 Config file: ``~/.config/notegraph/config.toml`` (or ``--config``). Use section ``[vikunja]`` for ``base_url``, ``token``, optional ``github_search_query``, and optional ``github_project_template`` / ``jira_project_template`` (``str.format``; defaults ``{repo}`` and ``{project_key}``). Same keys can be overridden by env:
@@ -9,7 +14,7 @@ Config file: ``~/.config/notegraph/config.toml`` (or ``--config``). Use section 
 | `VIKUNJA_TOKEN` | `token` |
 | `VIKUNJA_BASE_URL` | `base_url` |
 
-Jira sync uses `[jira]` / `JIRA_*` as elsewhere; **JQL** resolution order is `--jira-jql`, then `JIRA_JQL`, then **`[jira].jql`** from the config file, then the built-in default.
+Jira sync uses `[jira]` / `JIRA_*` as elsewhere; **JQL** resolution order is **`--jql`**, then `JIRA_JQL`, then **`[jira].jql`** from the config file, then the built-in default.
 
 ## GitHub scope
 
@@ -18,6 +23,10 @@ Jira sync uses `[jira]` / `JIRA_*` as elsewhere; **JQL** resolution order is `--
 
 Default when both are unset: GitHub is skipped (warning logged).
 
+## Indexed 0 Vikunja tasks
+
+The INFO line counts tasks returned from Vikunja's task-list API **before** this run creates or updates anything. **Zero is normal** when the server truly has no tasks (e.g. empty namespace). Some Vikunja versions return an empty ``GET /tasks`` even when project tasks exist — notegraph then retries ``GET /tasks/all``. If the UI shows tasks but the count stays **0**, note your Vikunja version and report it.
+
 ## Troubleshooting Vikunja HTTP 401
 
 If Jira/GitHub succeed but Vikunja returns **401 Unauthorized**:
@@ -25,10 +34,11 @@ If Jira/GitHub succeed but Vikunja returns **401 Unauthorized**:
 - Ensure **`[vikunja].token`** is set in your config **or** **`VIKUNJA_TOKEN`** is exported. A plain `~/.config/notegraph/config.toml` without a `[vikunja]` section has **no** Vikunja token unless the env var is set.
 - Create a new **API token** in Vikunja (user settings → API tokens). Paste **only** the token string, not the word `Bearer` (a duplicated `Bearer` prefix is stripped automatically).
 - Confirm **`[vikunja].base_url`** matches the Vikunja instance you log into (default `http://127.0.0.1:3456`).
-- Re-run with **`-v`** for urllib3 DEBUG lines (request URL and status).
+- Re-run with **`-v`** for DEBUG lines from ``notegraph.*`` (per-task upsert decisions). Raw urllib3 request dumps stay suppressed.
 
 ## Vikunja layout
 
+- **Task titles:** Jira issue key (e.g. ``RUN-3555``) or GitHub slug (``github-org-repo-issue-42`` / ``…-pull-42``). Human summaries live in the **description**, so upstream summary edits do not change the Vikunja title.
 - Projects are created as needed using **`[vikunja].github_project_template`** and **`[vikunja].jira_project_template`** (defaults: `{repo}`, `{project_key}` — e.g. `containers/podman`, `RUN`).
 - Tasks get **`start_date`** when syncing: GitHub **pull requests** use PR creation day; GitHub **issues** use the latest timeline **assignment** to you (falls back to creation day); Jira uses the latest changelog transition assigning the **current** assignee (falls back to creation day). Extra REST calls: one per GitHub issue and one per Jira issue.
 - Only tasks **with** the `notegraph-sync` marker whose sync id looks like ``jira-…`` / ``github-…`` (legacy ``jira:…`` / ``github:…`` is normalized) are eligible for **automatic completion** when they disappear from Jira/GitHub — unless ``todo --vikunja`` is run with **`--leave-vikunja-stale`**, which keeps those mirrors open. Project renaming does not affect this behaviour.

@@ -84,8 +84,12 @@ Sections
 ``[vikunja]``
 ^^^^^^^^^^^^^
 
-Used by ``notegraph todo --vikunja`` (Jira/GitHub → Vikunja). Tokens may be set here
-or via environment variables (recommended for secrets).
+Used by ``notegraph todo --vikunja`` (Jira/GitHub → Vikunja). Vikunja **task
+titles** are the Jira issue key or GitHub sync slug (not the human summary); the
+summary lives in the task body. Task bodies do not include Logseq note files;
+use ``todo --sync`` for note triplets.
+
+Tokens may be set here or via environment variables (recommended for secrets).
 
 .. list-table::
    :header-rows: 1
