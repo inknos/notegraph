@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime
 from unittest.mock import MagicMock
 
 import requests as _req
@@ -10,12 +11,13 @@ from notegraph.schema import TodoItem
 from notegraph.vikunja_sync import (
     VikunjaClient,
     _canonical_sync_id,
-    _default_due_date,
     _extract_sync_id,
     _github_sync_slug,
+    _jira_priority_to_vikunja,
     _jira_sync_slug,
     _waiting_from_github_todo,
     _waiting_from_jira_todo,
+    _weekly_reminders,
 )
 
 
@@ -186,18 +188,89 @@ class TestVikunjaClientIterTasks:
         assert session.get.call_args[0][0].endswith("/tasks")
 
 
-class TestDefaultDueDate:
-    def test_adds_seven_days(self) -> None:
-        assert _default_due_date("2026-04-27T00:00:00Z") == "2026-05-04T00:00:00Z"
+class TestWeeklyReminders:
+    def _now(self) -> datetime.datetime:
+        return datetime.datetime(2026, 4, 30, tzinfo=datetime.timezone.utc)
 
-    def test_month_rollover(self) -> None:
-        assert _default_due_date("2026-01-28T00:00:00Z") == "2026-02-04T00:00:00Z"
+    def test_empty_start_returns_empty(self) -> None:
+        assert _weekly_reminders("") == []
 
-    def test_year_rollover(self) -> None:
-        assert _default_due_date("2025-12-29T00:00:00Z") == "2026-01-05T00:00:00Z"
+    def test_invalid_date_returns_empty(self) -> None:
+        assert _weekly_reminders("not-a-date") == []
 
-    def test_empty_returns_empty(self) -> None:
-        assert _default_due_date("") == ""
+    def test_less_than_seven_days_returns_empty(self) -> None:
+        start = "2026-04-25T00:00:00Z"  # 5 days ago
+        assert _weekly_reminders(start, now=self._now()) == []
 
-    def test_invalid_returns_empty(self) -> None:
-        assert _default_due_date("not-a-date") == ""
+    def test_exactly_seven_days_returns_one(self) -> None:
+        start = "2026-04-23T00:00:00Z"  # 7 days ago
+        result = _weekly_reminders(start, now=self._now())
+        assert len(result) == 1
+        assert result[0]["reminder"] == "2026-04-30T00:00:00Z"
+
+    def test_three_weeks_returns_three(self) -> None:
+        start = "2026-04-09T00:00:00Z"  # 21 days ago
+        result = _weekly_reminders(start, now=self._now())
+        assert len(result) == 3
+        assert result[0]["reminder"] == "2026-04-16T00:00:00Z"
+        assert result[1]["reminder"] == "2026-04-23T00:00:00Z"
+        assert result[2]["reminder"] == "2026-04-30T00:00:00Z"
+
+    def test_reminder_shape(self) -> None:
+        start = "2026-04-23T00:00:00Z"
+        result = _weekly_reminders(start, now=self._now())
+        assert len(result) == 1
+        r = result[0]
+        assert r["relative_period"] == 0
+        assert r["relative_to"] == "due_date"
+
+
+class TestJiraPriorityMapping:
+    def test_known_priorities(self) -> None:
+        assert _jira_priority_to_vikunja("Blocker") == 4
+        assert _jira_priority_to_vikunja("Highest") == 4
+        assert _jira_priority_to_vikunja("Critical") == 3
+        assert _jira_priority_to_vikunja("High") == 3
+        assert _jira_priority_to_vikunja("Major") == 2
+        assert _jira_priority_to_vikunja("Medium") == 2
+        assert _jira_priority_to_vikunja("Minor") == 1
+        assert _jira_priority_to_vikunja("Low") == 1
+        assert _jira_priority_to_vikunja("Trivial") == 0
+
+    def test_unknown_returns_zero(self) -> None:
+        assert _jira_priority_to_vikunja("") == 0
+        assert _jira_priority_to_vikunja("Custom Priority") == 0
+
+    def test_case_insensitive(self) -> None:
+        assert _jira_priority_to_vikunja("MAJOR") == 2
+        assert _jira_priority_to_vikunja("major") == 2
+        assert _jira_priority_to_vikunja("  Major  ") == 2
+
+
+class TestJiraPriorityInWaiting:
+    def test_jira_priority_passed_through(self) -> None:
+        item = TodoItem(
+            url="https://jira.example.com/browse/RUN-100",
+            title="t",
+            source="jira",
+            kind="story",
+            state="Open",
+            repo="RUN",
+            priority="Major",
+        )
+        row = _waiting_from_jira_todo(item, project_template="JIRA")
+        assert row is not None
+        assert row.priority == 2
+
+    def test_github_priority_is_zero(self) -> None:
+        item = TodoItem(
+            url="https://github.com/acme/r/issues/1",
+            title="t",
+            source="github",
+            kind="issue",
+            state="open",
+            repo="acme/r",
+        )
+        row = _waiting_from_github_todo(item, project_template="GitHub")
+        assert row is not None
+        assert row.priority == 0

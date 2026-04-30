@@ -2,13 +2,14 @@ r"""Sync Jira and GitHub "waiting on me" items into Vikunja projects.
 
 CLI entry: ``notegraph todo --vikunja`` (see :mod:`notegraph.cli`).
 
-Tasks are filed under Vikunja project titles derived from ``[vikunja]`` templates
-(default ``{repo}`` for GitHub and ``{project_key}`` for Jira). Upserts match a
-hidden HTML marker in the description using a stable slug id (e.g.
-``github-org-repo-issue-12``, ``github-org-repo-pull-12``, ``jira-run-100``).
-Legacy markers ``github:owner/repo#N`` / ``jira:KEY`` normalize when read so
-existing tasks still match. Each sync updates Vikunja when title, description, or
-start date differs; stale upstream items can be marked done.
+Tasks are filed under two Vikunja projects by default (``JIRA`` and ``GitHub``;
+overridable via ``[vikunja]`` templates). Upserts match a hidden HTML marker in the
+description using a stable slug id (e.g. ``github-org-repo-issue-12``,
+``github-org-repo-pull-12``, ``jira-run-100``). Legacy markers
+``github:owner/repo#N`` / ``jira:KEY`` normalize when read so existing tasks still
+match. Each sync updates Vikunja when title, description, start date, or priority
+differs; stale upstream items can be marked done. Priority is auto-calculated from
+``start_date`` age: medium (≤ 14 d), high (15–21 d), urgent (> 21 d).
 
 **Vikunja task titles** are stable identifiers only: Jira **issue keys** (e.g.
 ``RUN-3555``) and GitHub **sync slugs** (``github-org-repo-issue-N`` /
@@ -56,7 +57,19 @@ _DATE_ONLY_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _VIKUNJA_ZERO_DATE = "0001-01-01T00:00:00Z"
 
 
-_DUE_DATE_OFFSET = datetime.timedelta(days=7)
+_REMINDER_INTERVAL = datetime.timedelta(days=7)
+
+_JIRA_PRIORITY_MAP: dict[str, int] = {
+    "blocker": 4,
+    "highest": 4,
+    "critical": 3,
+    "high": 3,
+    "major": 2,
+    "medium": 2,
+    "minor": 1,
+    "low": 1,
+    "trivial": 0,
+}
 
 
 def _normalize_vikunja_date(value: str) -> str:
@@ -66,20 +79,40 @@ def _normalize_vikunja_date(value: str) -> str:
     return value
 
 
-def _default_due_date(start_iso: str) -> str:
-    """Return *start_iso* + 7 days in Vikunja datetime format.
+def _jira_priority_to_vikunja(name: str) -> int:
+    """Map a Jira priority name to a Vikunja integer (0-5)."""
+    return _JIRA_PRIORITY_MAP.get(name.strip().lower(), 0)
 
-    *start_iso* must already be normalized (``YYYY-MM-DDTHH:MM:SSZ``).
-    Returns ``""`` when the input is empty or unparseable.
+
+def _weekly_reminders(
+    start_iso: str,
+    now: datetime.datetime | None = None,
+) -> list[dict[str, Any]]:
+    """Generate absolute weekly reminders from *start_iso* up to *now*.
+
+    Returns a list of ``{"reminder": "...", "relative_period": 0,
+    "relative_to": "due_date"}`` dicts, one per 7-day mark after
+    *start_iso* that has already passed.  Returns ``[]`` when the input
+    is empty, unparseable, or less than 7 days old.
     """
     if not start_iso:
-        return ""
+        return []
     try:
         dt = datetime.datetime.fromisoformat(start_iso.replace("Z", "+00:00"))
     except ValueError:
-        return ""
-    due = dt + _DUE_DATE_OFFSET
-    return due.strftime("%Y-%m-%dT%H:%M:%SZ")
+        return []
+    if now is None:
+        now = datetime.datetime.now(datetime.timezone.utc)
+    reminders: list[dict[str, Any]] = []
+    cursor = dt + _REMINDER_INTERVAL
+    while cursor <= now:
+        reminders.append({
+            "reminder": cursor.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "relative_period": 0,
+            "relative_to": "due_date",
+        })
+        cursor += _REMINDER_INTERVAL
+    return reminders
 
 
 def _split_github_org_repo(full: str) -> tuple[str, str]:
@@ -183,6 +216,7 @@ class WaitingItem:
     description: str
     vikunja_project_title: str
     start_date: str = ""
+    priority: int = 0
 
 
 def _sync_marker(sync_id: str) -> str:
@@ -229,6 +263,7 @@ def _waiting_from_jira_todo(item: TodoItem, *, project_template: str) -> Waiting
         description=description,
         vikunja_project_title=vik_title,
         start_date=(item.start_date or "").strip(),
+        priority=_jira_priority_to_vikunja(item.priority),
     )
 
 
@@ -531,32 +566,36 @@ def _upsert_project_items(
             want_start = _normalize_vikunja_date((item.start_date or "").strip())
             if want_start == _VIKUNJA_ZERO_DATE:
                 want_start = ""
-            want_due = _default_due_date(want_start)
+            want_reminders = _weekly_reminders(want_start)
+            want_reminder_ts = sorted(r["reminder"] for r in want_reminders)
             task_payload: dict[str, Any] = {
                 "title": item.title,
                 "description": item.description,
                 "done": False,
+                "priority": item.priority,
             }
             if want_start:
                 task_payload["start_date"] = want_start
-            if want_due:
-                task_payload["due_date"] = want_due
+            if want_reminders:
+                task_payload["reminders"] = want_reminders
             if item.sync_id in existing:
                 current = existing[item.sync_id]
                 tid = int(current["id"])
                 cur_title = current.get("title")
                 cur_desc = current.get("description") or ""
                 cur_start = (current.get("start_date") or "").strip()
-                cur_due = (current.get("due_date") or "").strip()
+                cur_priority = current.get("priority", 0)
+                cur_reminder_ts = sorted(
+                    r.get("reminder", "") for r in (current.get("reminders") or [])
+                )
                 if cur_start == _VIKUNJA_ZERO_DATE:
                     cur_start = ""
-                if cur_due == _VIKUNJA_ZERO_DATE:
-                    cur_due = ""
                 needs_update = (
                     cur_title != item.title
                     or cur_desc != item.description
                     or cur_start != want_start
-                    or cur_due != want_due
+                    or cur_priority != item.priority
+                    or cur_reminder_ts != want_reminder_ts
                 )
                 if needs_update:
                     update_body: dict[str, Any] = {
@@ -565,11 +604,12 @@ def _upsert_project_items(
                         "description": item.description,
                         "done": bool(current.get("done")),
                         "project_id": pid,
+                        "priority": item.priority,
                     }
                     if want_start:
                         update_body["start_date"] = want_start
-                    if want_due:
-                        update_body["due_date"] = want_due
+                    if want_reminders:
+                        update_body["reminders"] = want_reminders
                     logger.debug(
                         "Update task id=%s sync_id=%s project=%r",
                         tid,

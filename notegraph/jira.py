@@ -289,6 +289,7 @@ def _item_to_todo(issue: dict, endpoint: str) -> TodoItem:
         updated_at=(fields.get("updated") or "")[:10],
         created_at=(fields.get("created") or "")[:10],
         start_date="",
+        priority=(fields.get("priority") or {}).get("name", ""),
     )
 
 

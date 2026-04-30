@@ -357,6 +357,8 @@ class TodoItem(BaseModel):
     created_at: str = ""
     #: Scheduling start day ``YYYY-MM-DD`` (e.g. assignment or PR creation).
     start_date: str = ""
+    #: Raw upstream priority name (e.g. Jira ``"Major"``); empty for GitHub.
+    priority: str = ""
 
 
 # ---------------------------------------------------------------------------
