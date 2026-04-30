@@ -36,3 +36,11 @@ github_search_query = ""
 # Override with str.format templates for per-repo/per-key projects:
 # github_project_template = "{repo}"          # e.g. containers/podman
 # jira_project_template = "{project_key}"    # e.g. RUN
+
+[llm]
+# LLM classifier for ambiguous needinfo detection.
+# Talks to any OpenAI-compatible /chat/completions endpoint.
+# Prefer env LLM_TOKEN / LLM_ENDPOINT over storing secrets here.
+endpoint = ""   # e.g. "http://localhost:4000/v1", "https://api.openai.com/v1"
+token = ""      # API key / Bearer token
+model = "gpt-4o-mini"

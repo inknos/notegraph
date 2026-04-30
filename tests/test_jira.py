@@ -595,6 +595,9 @@ class TestFetchTodo:
                     "changelog": {"histories": []},
                 },
             ),
+            _mock_response({"displayName": "Test User"}),
+            _mock_response({"fields": {"comment": {"comments": []}}}),
+            _mock_response({"fields": {"comment": {"comments": []}}}),
         ]
 
         result = fetch_todo(

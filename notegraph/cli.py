@@ -4,6 +4,7 @@ Usage::
 
     notegraph [--config PATH] fetch --source github|jira <URL_OR_KEY> [OPTIONS]
     notegraph [--config PATH] todo  [--source github|jira] [OPTIONS]
+    notegraph [--config PATH] check [--source github|jira|vikunja|llm]
 
 Global options (before the subcommand):
 
@@ -11,6 +12,11 @@ Global options (before the subcommand):
                           (default: ~/.config/notegraph/config.toml).
     -v, --verbose         Debug logging for notegraph (HTTP libraries stay at WARNING).
     --dry-run             Preview without writing notes/worktodo or Vikunja mutations.
+
+``check`` options:
+
+    --source SOURCE       Check a single source (github, jira, vikunja, llm).
+                          Omit to check all configured sources.
 
 ``fetch`` options:
 
@@ -142,6 +148,14 @@ class VikunjaConfig(BaseModel):
     jira_project_template: str = "JIRA"
 
 
+class LLMConfig(BaseModel):
+    """LLM classifier configuration for needinfo detection."""
+
+    endpoint: str = ""
+    token: str = ""
+    model: str = "gpt-4o-mini"
+
+
 class AppConfig(BaseModel):
     """Full application config, assembled from TOML + env vars.
 
@@ -153,6 +167,7 @@ class AppConfig(BaseModel):
     github: GitHubConfig = GitHubConfig()
     logseq: LogseqConfig = LogseqConfig()
     vikunja: VikunjaConfig = VikunjaConfig()
+    llm: LLMConfig = LLMConfig()
 
     @property
     def dest_dir(self) -> str:
@@ -188,6 +203,7 @@ def _apply_env_overrides(data: dict[str, Any]) -> None:
     jira = data.setdefault("jira", {})
     github = data.setdefault("github", {})
     vikunja = data.setdefault("vikunja", {})
+    llm = data.setdefault("llm", {})
 
     if token := os.environ.get("JIRA_TOKEN"):
         jira["token"] = token
@@ -201,6 +217,10 @@ def _apply_env_overrides(data: dict[str, Any]) -> None:
         vikunja["token"] = token
     if base_url := os.environ.get("VIKUNJA_BASE_URL"):
         vikunja["base_url"] = base_url
+    if token := os.environ.get("LLM_TOKEN"):
+        llm["token"] = token
+    if endpoint := os.environ.get("LLM_ENDPOINT"):
+        llm["endpoint"] = endpoint
 
 
 # ---------------------------------------------------------------------------
@@ -681,6 +701,130 @@ def _chain_github(
         return
     gh_content = github_api.fetch(gh_ref, token=cfg.github.token)
     writer.write(gh_content, gh_ref, dest, replace=replace)
+
+
+_CHECK_SOURCES = ("github", "jira", "vikunja", "llm")
+
+
+@app.command
+def check(
+    source: Annotated[
+        Literal["github", "jira", "vikunja", "llm"] | None,
+        Parameter(help="Check a single source (default: all configured)."),
+    ] = None,
+) -> None:
+    """Verify connectivity and authentication for configured services.
+
+    Pings each service's auth endpoint to confirm tokens are valid.
+    Use ``--source`` to check a single service.
+    """
+    cfg = _get_config()
+    sources = (source,) if source else _CHECK_SOURCES
+    any_failed = False
+
+    for src in sources:
+        ok, detail = _check_source(src, cfg)
+        status = "ok" if ok else "FAIL"
+        sys.stdout.write(f"  {src:10s} {status:4s}  {detail}\n")
+        if not ok:
+            any_failed = True
+
+    if any_failed:
+        raise SystemExit(1)
+
+
+def _check_source(source: str, cfg: AppConfig) -> tuple[bool, str]:
+    """Ping one service, returning ``(ok, detail_message)``."""
+    if source == "github":
+        return _check_github(cfg)
+    if source == "jira":
+        return _check_jira(cfg)
+    if source == "vikunja":
+        return _check_vikunja(cfg)
+    if source == "llm":
+        return _check_llm(cfg)
+    return False, f"unknown source {source!r}"
+
+
+def _check_github(cfg: AppConfig) -> tuple[bool, str]:
+    if not cfg.github.token:
+        return False, "no token (set [github].token or GITHUB_TOKEN)"
+    try:
+        session = requests.Session()
+        session.headers["Accept"] = "application/vnd.github+json"
+        session.headers["Authorization"] = f"Bearer {cfg.github.token}"
+        resp = session.get("https://api.github.com/user", timeout=15)
+    except requests.RequestException as exc:
+        return False, str(exc)
+    else:
+        if not resp.ok:
+            return False, f"HTTP {resp.status_code}"
+        login = resp.json().get("login", "?")
+        return True, f"authenticated as {login}"
+
+
+def _check_jira(cfg: AppConfig) -> tuple[bool, str]:
+    if not cfg.jira.endpoint:
+        return False, "no endpoint (set [jira].endpoint)"
+    if not (cfg.jira.email and cfg.jira.token):
+        return False, "no credentials (set [jira].email + token or JIRA_EMAIL/JIRA_TOKEN)"
+    try:
+        session = requests.Session()
+        session.headers["Accept"] = "application/json"
+        session.auth = (cfg.jira.email, cfg.jira.token)
+        resp = session.get(
+            f"https://{cfg.jira.endpoint}/rest/api/3/myself", timeout=15,
+        )
+    except requests.RequestException as exc:
+        return False, str(exc)
+    else:
+        if not resp.ok:
+            return False, f"HTTP {resp.status_code}"
+        name = resp.json().get("displayName", "?")
+        return True, f"authenticated as {name}"
+
+
+def _check_vikunja(cfg: AppConfig) -> tuple[bool, str]:
+    from notegraph.vikunja_sync import _normalize_vikunja_token  # noqa: PLC0415
+
+    base = cfg.vikunja.base_url.strip().rstrip("/") or "http://127.0.0.1:3456"
+    token = _normalize_vikunja_token(cfg.vikunja.token)
+    if not token:
+        return False, "no token (set [vikunja].token or VIKUNJA_TOKEN)"
+    try:
+        session = requests.Session()
+        session.headers["Authorization"] = f"Bearer {token}"
+        session.headers["Accept"] = "application/json"
+        resp = session.get(f"{base}/api/v1/user", timeout=15)
+    except requests.RequestException as exc:
+        return False, str(exc)
+    else:
+        if not resp.ok:
+            return False, f"HTTP {resp.status_code}"
+        username = resp.json().get("username", "?")
+        return True, f"authenticated as {username}"
+
+
+def _check_llm(cfg: AppConfig) -> tuple[bool, str]:
+    if not cfg.llm.endpoint:
+        return False, "no endpoint (set [llm].endpoint or LLM_ENDPOINT)"
+    from notegraph.llm_classify import LLMConfig as _LLMCfg  # noqa: PLC0415
+    from notegraph.llm_classify import _chat_completion  # noqa: PLC0415
+
+    llm_cfg = _LLMCfg(endpoint=cfg.llm.endpoint, token=cfg.llm.token, model=cfg.llm.model)
+    try:
+        data = _chat_completion(
+            llm_cfg,
+            [{"role": "user", "content": "ping"}],
+            max_tokens=1,
+        )
+    except requests.RequestException as exc:
+        return False, str(exc)
+    except Exception as exc:  # noqa: BLE001
+        return False, str(exc)
+    else:
+        model = data.get("model", cfg.llm.model)
+        return True, f"model {model} responded"
 
 
 def main() -> None:

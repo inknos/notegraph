@@ -328,65 +328,95 @@ _GITHUB_HTML_URL_RE = re.compile(
 _DUE_DATE_OFFSET = datetime.timedelta(days=7)
 
 
-def _compute_due_date(
+def _earliest_unanswered_mention(
+    comments: list[Comment],
+    username: str,
+) -> str:
+    """Find the date of the earliest @mention with no subsequent reply from *username*.
+
+    Returns ``YYYY-MM-DD`` or ``""`` if all mentions are answered.
+    """
+    pattern = f"@{username}"
+    earliest = ""
+    for i, comment in enumerate(comments):
+        if comment.author == username or pattern not in comment.body:
+            continue
+        answered = any(c.author == username for c in comments[i + 1 :])
+        if not answered and (not earliest or comment.date < earliest):
+            earliest = comment.date
+    return earliest
+
+
+def _compute_needinfo(
     session: requests.Session,
     owner: str,
     repo: str,
     number: int,
     username: str,
-) -> str:
-    """Compute a due date from the latest qualifying comment.
+) -> tuple[bool, bool, str]:
+    """Determine whether the user owes a response on this issue/PR.
 
-    A qualifying comment is one where the authenticated user posted
-    (ball is in someone else's court) or someone mentioned ``@username``
-    (they're waiting on the user).  Returns ``YYYY-MM-DD`` 7 days after
-    the most recent such comment, or ``""`` when none qualifies.
+    Returns:
+        ``(needinfo, confident, due_date)`` where *confident* is ``False``
+        for ambiguous cases that should be deferred to an LLM classifier.
     """
     try:
         comments = _fetch_comments(session, owner, repo, number)
     except FetchError as exc:
         logger.debug("Comments %s/%s#%s: %s", owner, repo, number, exc)
-        return ""
-    mention_pattern = f"@{username}"
-    latest: str = ""
-    for comment in comments:
-        is_own = comment.author == username
-        is_mention = mention_pattern in comment.body
-        if (is_own or is_mention) and comment.date > latest:
-            latest = comment.date
-    if not latest:
-        return ""
-    try:
-        base = datetime.date.fromisoformat(latest)
-    except ValueError:
-        return ""
-    return (base + _DUE_DATE_OFFSET).isoformat()
+        return False, False, ""
+
+    earliest = _earliest_unanswered_mention(comments, username)
+    if earliest:
+        try:
+            base = datetime.date.fromisoformat(earliest)
+        except ValueError:
+            return True, True, ""
+        return True, True, (base + _DUE_DATE_OFFSET).isoformat()
+
+    user_has_commented = any(c.author == username for c in comments)
+    if not user_has_commented and comments:
+        return True, True, ""
+
+    if not comments:
+        return True, False, ""
+
+    last_is_user = comments[-1].author == username
+    return (False, True, "") if last_is_user else (False, False, "")
 
 
-def _apply_github_due_dates(
+def _apply_github_needinfo(
     session: requests.Session,
     username: str,
     items: list[TodoItem],
 ) -> list[TodoItem]:
-    """Set ``due_date`` on todo items based on comment activity.
+    """Set ``needinfo`` and ``due_date`` on todo items from comment analysis.
 
-    For each item, fetches issue comments and looks for the user's own
-    posts or ``@username`` mentions.  The due date is 7 days after the
-    latest qualifying comment.
+    High-confidence results are applied directly.  Low-confidence items
+    get ``needinfo=False, confident=False`` — the caller can pass those
+    to an LLM classifier afterwards.
     """
     out: list[TodoItem] = []
     for item in items:
         m = _GITHUB_HTML_URL_RE.match(item.url.rstrip("/"))
+        needinfo = False
         due = ""
+        confident = True
         if m:
-            due = _compute_due_date(
+            needinfo, confident, due = _compute_needinfo(
                 session,
                 m["owner"],
                 m["repo"],
                 int(m["num"]),
                 username,
             )
-        out.append(item.model_copy(update={"due_date": due}) if due else item)
+        updates: dict[str, object] = {
+            "needinfo": needinfo,
+            "needinfo_confident": confident,
+        }
+        if due:
+            updates["due_date"] = due
+        out.append(item.model_copy(update=updates))
     return out
 
 
@@ -494,7 +524,7 @@ def fetch_todo(
 
     deduped.sort(key=lambda t: t.updated_at, reverse=True)
     items = _apply_github_issue_start_dates(session, username, deduped)
-    return _apply_github_due_dates(session, username, items)
+    return _apply_github_needinfo(session, username, items)
 
 
 def fetch_todo_search(*, query: str, token: str = "") -> list[TodoItem]:
@@ -535,4 +565,4 @@ def fetch_todo_search(*, query: str, token: str = "") -> list[TodoItem]:
 
     deduped.sort(key=lambda t: t.updated_at, reverse=True)
     items = _apply_github_issue_start_dates(session, username, deduped)
-    return _apply_github_due_dates(session, username, items)
+    return _apply_github_needinfo(session, username, items)

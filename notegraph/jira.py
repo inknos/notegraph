@@ -262,6 +262,86 @@ def _enrich_jira_todo_start_dates(
     return out
 
 
+def _jira_needinfo_from_comments(
+    comments: list[Comment],
+    display_name: str,
+) -> tuple[bool, bool]:
+    """Classify needinfo from a Jira comment thread.
+
+    Returns:
+        ``(needinfo, confident)`` — *confident* is ``False`` for ambiguous
+        cases that should be deferred to an LLM classifier.
+    """
+    if not display_name:
+        return False, True
+
+    user_has_commented = any(c.author == display_name for c in comments)
+
+    for i, comment in enumerate(comments):
+        if comment.author == display_name:
+            continue
+        if display_name not in comment.body:
+            continue
+        answered = any(
+            later.author == display_name for later in comments[i + 1 :]
+        )
+        if not answered:
+            return True, True
+
+    if not user_has_commented and comments:
+        return True, True
+
+    if not comments:
+        return True, False
+
+    return (False, True) if comments[-1].author == display_name else (False, False)
+
+
+def _get_jira_display_name(session: requests.Session, endpoint: str) -> str:
+    """Resolve the authenticated Jira user's display name."""
+    resp = session.get(
+        f"https://{endpoint}/rest/api/{_API_VERSION}/myself",
+    )
+    if resp.ok:
+        return resp.json().get("displayName", "")
+    return ""
+
+
+def _enrich_jira_needinfo(
+    session: requests.Session,
+    endpoint: str,
+    items: list[TodoItem],
+) -> list[TodoItem]:
+    """Set ``needinfo`` on Jira todo items by analyzing comments."""
+    display_name = _get_jira_display_name(session, endpoint)
+    if not display_name:
+        logger.debug("Could not resolve Jira display name; skipping needinfo.")
+        return items
+    out: list[TodoItem] = []
+    for item in items:
+        key = _browse_issue_key(item.url)
+        if not key:
+            out.append(item)
+            continue
+        detail_url = (
+            f"https://{endpoint}/rest/api/{_API_VERSION}/issue/{key}"
+        )
+        try:
+            resp = session.get(detail_url, params={"fields": "comment"})
+            resp.raise_for_status()
+        except (requests.HTTPError, requests.RequestException) as exc:
+            logger.debug("Jira needinfo %s: %s", key, exc)
+            out.append(item)
+            continue
+        comments = _extract_comments(resp.json().get("fields", {}))
+        needinfo, confident = _jira_needinfo_from_comments(comments, display_name)
+        out.append(item.model_copy(update={
+            "needinfo": needinfo,
+            "needinfo_confident": confident,
+        }))
+    return out
+
+
 _SEARCH_MAX_RESULTS = 100
 
 
@@ -363,4 +443,5 @@ def fetch_todo(
             break
 
     items.sort(key=lambda t: t.updated_at, reverse=True)
-    return _enrich_jira_todo_start_dates(session, endpoint, items)
+    items = _enrich_jira_todo_start_dates(session, endpoint, items)
+    return _enrich_jira_needinfo(session, endpoint, items)

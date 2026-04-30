@@ -361,6 +361,10 @@ class TodoItem(BaseModel):
     priority: str = ""
     #: Computed due day ``YYYY-MM-DD`` (e.g. 1 week after last user comment or @mention).
     due_date: str = ""
+    #: True when the ball is in the user's court (unanswered @mention or unactioned assignment).
+    needinfo: bool = False
+    #: False when needinfo heuristic was ambiguous and should be refined by LLM.
+    needinfo_confident: bool = True
 
 
 # ---------------------------------------------------------------------------

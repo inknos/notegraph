@@ -35,6 +35,7 @@ from notegraph import jira as jira_api
 from notegraph.cli import AppConfig, load_config
 from notegraph.github import FetchError as GitHubFetchError
 from notegraph.jira import FetchError as JiraFetchError
+from notegraph.llm_classify import LLMConfig, classify_needinfo
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -58,6 +59,40 @@ _VIKUNJA_ZERO_DATE = "0001-01-01T00:00:00Z"
 
 
 _REMINDER_INTERVAL = datetime.timedelta(days=7)
+_FRIDAY_WEEKDAY = 4  # Monday=0 … Friday=4
+
+
+def _next_friday(
+    now: datetime.date | None = None,
+) -> str:
+    """Return ISO date string for the coming Friday (or today if Friday)."""
+    if now is None:
+        now = datetime.date.today()  # noqa: DTZ011
+    days_ahead = (_FRIDAY_WEEKDAY - now.weekday()) % 7
+    if days_ahead == 0 and now.weekday() == _FRIDAY_WEEKDAY:
+        return now.isoformat()
+    if days_ahead == 0:
+        days_ahead = 7
+    return (now + datetime.timedelta(days=days_ahead)).isoformat()
+
+
+def _mwf_reminders(due_date_iso: str) -> list[dict[str, Any]]:
+    """Return Mon/Wed/Fri reminder dicts at 09:00 UTC for the due-date's week."""
+    try:
+        friday = datetime.date.fromisoformat(due_date_iso)
+    except ValueError:
+        return []
+    monday = friday - datetime.timedelta(days=4)
+    wednesday = friday - datetime.timedelta(days=2)
+    return [
+        {
+            "reminder": f"{day.isoformat()}T09:00:00Z",
+            "relative_period": 0,
+            "relative_to": "due_date",
+        }
+        for day in (monday, wednesday, friday)
+    ]
+
 
 _JIRA_PRIORITY_MAP: dict[str, int] = {
     "blocker": 4,
@@ -218,6 +253,8 @@ class WaitingItem:
     start_date: str = ""
     priority: int = 0
     due_date: str = ""
+    needinfo: bool = False
+    needinfo_confident: bool = True
 
 
 def _sync_marker(sync_id: str) -> str:
@@ -266,6 +303,8 @@ def _waiting_from_jira_todo(item: TodoItem, *, project_template: str) -> Waiting
         start_date=(item.start_date or "").strip(),
         priority=_jira_priority_to_vikunja(item.priority),
         due_date=(item.due_date or "").strip(),
+        needinfo=item.needinfo,
+        needinfo_confident=item.needinfo_confident,
     )
 
 
@@ -306,6 +345,8 @@ def _waiting_from_github_todo(item: TodoItem, *, project_template: str) -> Waiti
         vikunja_project_title=vik_title,
         start_date=(item.start_date or "").strip(),
         due_date=(item.due_date or "").strip(),
+        needinfo=item.needinfo,
+        needinfo_confident=item.needinfo_confident,
     )
 
 
@@ -523,6 +564,100 @@ class VikunjaClient:
         _vikunja_require_ok(response)
         return response.json()
 
+    def ensure_label(self, title: str, *, dry_run: bool) -> int | None:
+        """Find or create a label by *title*, returning its id."""
+        response = self.session.get(f"{self.base}/labels", timeout=30)
+        _vikunja_require_ok(response)
+        for label in response.json():
+            if label.get("title") == title:
+                return int(label["id"])
+        if dry_run:
+            logger.info("Would create Vikunja label %r", title)
+            return None
+        response = self.session.put(
+            f"{self.base}/labels",
+            json={"title": title},
+            timeout=30,
+        )
+        _vikunja_require_ok(response)
+        return int(response.json()["id"])
+
+    def add_label_to_task(
+        self,
+        task_id: int,
+        label_id: int,
+        *,
+        dry_run: bool,
+    ) -> None:
+        """Assign a label to a task (idempotent)."""
+        if dry_run:
+            logger.info("Would add label %s to task %s", label_id, task_id)
+            return
+        response = self.session.put(
+            f"{self.base}/tasks/{task_id}/labels",
+            json={"label_id": label_id},
+            timeout=30,
+        )
+        if response.status_code == HTTPStatus.CONFLICT:
+            logger.debug("Label %s already on task %s.", label_id, task_id)
+            return
+        _vikunja_require_ok(response)
+
+
+def _refine_needinfo_with_llm(
+    items: list[WaitingItem],
+    llm_cfg: LLMConfig | None,
+    username: str,
+) -> list[WaitingItem]:
+    """Refine low-confidence needinfo via LLM; returns items with updated flags."""
+    if llm_cfg is None or not (llm_cfg.endpoint or llm_cfg.token):
+        n_ambig = sum(1 for it in items if not it.needinfo_confident)
+        if n_ambig:
+            logger.info(
+                "LLM not configured; %s ambiguous item(s) default to needinfo=True.",
+                n_ambig,
+            )
+        return [
+            WaitingItem(
+                sync_id=it.sync_id,
+                title=it.title,
+                description=it.description,
+                vikunja_project_title=it.vikunja_project_title,
+                start_date=it.start_date,
+                priority=it.priority,
+                due_date=it.due_date,
+                needinfo=True if not it.needinfo_confident else it.needinfo,
+                needinfo_confident=True,
+            )
+            for it in items
+        ]
+    out: list[WaitingItem] = []
+    for it in items:
+        if it.needinfo_confident:
+            out.append(it)
+            continue
+        result = classify_needinfo(
+            title=it.title,
+            comments=[it.description],
+            username=username,
+            cfg=llm_cfg,
+        )
+        logger.debug("LLM needinfo for %s: %s", it.sync_id, result)
+        out.append(
+            WaitingItem(
+                sync_id=it.sync_id,
+                title=it.title,
+                description=it.description,
+                vikunja_project_title=it.vikunja_project_title,
+                start_date=it.start_date,
+                priority=it.priority,
+                due_date=it.due_date,
+                needinfo=result,
+                needinfo_confident=True,
+            ),
+        )
+    return out
+
 
 def _build_task_indexes(
     all_tasks: list[dict[str, Any]],
@@ -549,6 +684,7 @@ def _upsert_project_items(
     tasks_by_project: dict[int, dict[str, dict[str, Any]]],
     *,
     dry_run: bool,
+    needinfo_label_id: int | None = None,
 ) -> tuple[int, int, int]:
     """Create or update Vikunja tasks for each waiting item.
 
@@ -569,10 +705,17 @@ def _upsert_project_items(
             want_start = _normalize_vikunja_date((item.start_date or "").strip())
             if want_start == _VIKUNJA_ZERO_DATE:
                 want_start = ""
-            want_due = _normalize_vikunja_date((item.due_date or "").strip())
-            if want_due == _VIKUNJA_ZERO_DATE:
-                want_due = ""
-            want_reminders = _weekly_reminders(want_start)
+
+            if item.needinfo:
+                ni_friday = _next_friday()
+                want_due = _normalize_vikunja_date(ni_friday)
+                want_reminders = _mwf_reminders(ni_friday)
+            else:
+                want_due = _normalize_vikunja_date((item.due_date or "").strip())
+                if want_due == _VIKUNJA_ZERO_DATE:
+                    want_due = ""
+                want_reminders = _weekly_reminders(want_start)
+
             want_reminder_ts = sorted(r["reminder"] for r in want_reminders)
             task_payload: dict[str, Any] = {
                 "title": item.title,
@@ -639,14 +782,21 @@ def _upsert_project_items(
                         project_title,
                     )
                     unchanged += 1
+
+                if item.needinfo and needinfo_label_id is not None:
+                    client.add_label_to_task(tid, needinfo_label_id, dry_run=dry_run)
             else:
                 logger.debug(
                     "Create task sync_id=%s project=%r",
                     item.sync_id,
                     project_title,
                 )
-                client.create_task(pid, task_payload, dry_run=dry_run)
+                result = client.create_task(pid, task_payload, dry_run=dry_run)
                 created += 1
+                if item.needinfo and needinfo_label_id is not None and result:
+                    client.add_label_to_task(
+                        int(result["id"]), needinfo_label_id, dry_run=dry_run,
+                    )
     return created, updated, unchanged
 
 
@@ -721,14 +871,28 @@ def run_sync(
     if gh_err:
         return 1
 
+    llm_cfg: LLMConfig | None = None
+    if hasattr(cfg, "llm") and (cfg.llm.endpoint or cfg.llm.token):
+        llm_cfg = LLMConfig(
+            endpoint=cfg.llm.endpoint,
+            token=cfg.llm.token,
+            model=cfg.llm.model,
+        )
+    username = os.environ.get("USER", "")
+    all_waiting = [*jira_waiting, *github_waiting]
+    all_waiting = _refine_needinfo_with_llm(all_waiting, llm_cfg, username)
+
+    n_needinfo = sum(1 for it in all_waiting if it.needinfo)
+    logger.info("Needinfo: %s of %s item(s).", n_needinfo, len(all_waiting))
+
     by_project: dict[str, list[WaitingItem]] = defaultdict(list)
-    for item in (*jira_waiting, *github_waiting):
+    for item in all_waiting:
         by_project[item.vikunja_project_title].append(item)
 
     logger.info(
         "Resolving %s Vikunja project(s) from %s upstream item(s).",
         len(by_project),
-        len(jira_waiting) + len(github_waiting),
+        len(all_waiting),
     )
     project_ids: dict[str, int] = {}
     for title in by_project:
@@ -736,12 +900,14 @@ def run_sync(
         if pid is not None:
             project_ids[title] = pid
 
+    needinfo_label_id = client.ensure_label("needinfo", dry_run=dry_run)
+
     logger.info("Fetching existing Vikunja tasks for dedup…")
     all_tasks = client.iter_tasks()
     tasks_by_project, managed_tasks = _build_task_indexes(all_tasks)
 
-    current_ids = {item.sync_id for item in (*jira_waiting, *github_waiting)}
-    upstream_n = len(jira_waiting) + len(github_waiting)
+    current_ids = {item.sync_id for item in all_waiting}
+    upstream_n = len(all_waiting)
     logger.info(
         "Indexed %s Vikunja task(s); %s upstream waiting row(s).",
         len(all_tasks),
@@ -754,6 +920,7 @@ def run_sync(
         project_ids,
         tasks_by_project,
         dry_run=dry_run,
+        needinfo_label_id=needinfo_label_id,
     )
     logger.info(
         "Vikunja upsert: %s created, %s updated, %s unchanged (dry-run=%s).",
