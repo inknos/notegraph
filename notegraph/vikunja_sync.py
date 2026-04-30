@@ -49,8 +49,8 @@ _LEGACY_MARKER_GITHUB = re.compile(r"^github:([^/]+)/([^#]+)#(\d+)$")
 _LEGACY_MARKER_JIRA = re.compile(r"^jira:([A-Za-z][A-Za-z0-9]*-\d+)$")
 
 _DEFAULT_JIRA_JQL = "assignee = currentUser() AND resolution = Unresolved ORDER BY updated DESC"
-_DEFAULT_GITHUB_PROJECT_TEMPLATE = "{repo}"
-_DEFAULT_JIRA_PROJECT_TEMPLATE = "{project_key}"
+_DEFAULT_GITHUB_PROJECT_TEMPLATE = "GitHub"
+_DEFAULT_JIRA_PROJECT_TEMPLATE = "JIRA"
 
 _DATE_ONLY_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _VIKUNJA_ZERO_DATE = "0001-01-01T00:00:00Z"

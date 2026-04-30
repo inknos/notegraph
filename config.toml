@@ -32,7 +32,7 @@ base_url = "http://127.0.0.1:3456"
 token = ""
 # Optional raw GitHub issue-search ``q``. Empty = use [github].orgs/repos like ``notegraph todo``.
 github_search_query = ""
-# Vikunja project titles (str.format). Defaults: plain repo / project key.
+# Vikunja project titles. Defaults: all GitHub items → "GitHub", all Jira → "JIRA".
+# Override with str.format templates for per-repo/per-key projects:
 # github_project_template = "{repo}"          # e.g. containers/podman
 # jira_project_template = "{project_key}"    # e.g. RUN
-# Legacy: "GitHub · {repo}" / "Jira · {project_key}"

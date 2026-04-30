@@ -110,15 +110,15 @@ Tokens may be set here or via environment variables (recommended for secrets).
        ``fetch_todo_search``. If empty, sync uses ``[github].orgs`` and
        ``[github].repos`` with the same queries as ``notegraph todo``.
    * - ``github_project_template``
-     - ``"{repo}"``
-     - ``str.format`` template for the Vikunja **project title** used for
-       GitHub tasks. Placeholders: ``repo`` (``owner/repo``), ``org``,
-       ``repo_name``. Legacy style: ``"GitHub · {repo}"``.
+     - ``"GitHub"``
+     - Vikunja **project title** for GitHub tasks. Supports ``str.format``
+       placeholders (``repo``, ``org``, ``repo_name``) if you want
+       per-repo projects, e.g. ``"{repo}"``.
    * - ``jira_project_template``
-     - ``"{project_key}"``
-     - Same for Jira-backed tasks. Placeholders: ``project_key`` (e.g.
-       ``RUN``), ``issue_key`` (e.g. ``RUN-3555``). Legacy:
-       ``"Jira · {project_key}"``.
+     - ``"JIRA"``
+     - Vikunja **project title** for Jira tasks. Supports ``str.format``
+       placeholders (``project_key``, ``issue_key``) if you want
+       per-project projects, e.g. ``"{project_key}"``.
 
 Environment variables
 ---------------------

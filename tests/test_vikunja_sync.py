@@ -98,6 +98,19 @@ class TestWaitingFromTodoTitles:
         assert row is not None
         assert row.title == "github-acme-r-pull-9"
 
+    def test_github_default_project_is_github(self) -> None:
+        item = TodoItem(
+            url="https://github.com/acme/r/issues/1",
+            title="t",
+            source="github",
+            kind="issue",
+            state="open",
+            repo="acme/r",
+        )
+        row = _waiting_from_github_todo(item, project_template="GitHub")
+        assert row is not None
+        assert row.vikunja_project_title == "GitHub"
+
     def test_jira_title_is_issue_key(self) -> None:
         item = TodoItem(
             url="https://jira.example.com/browse/RUN-100",
@@ -112,6 +125,19 @@ class TestWaitingFromTodoTitles:
         assert row.title == "RUN-100"
         assert "Human summary" in row.description
         assert "[RUN-100]" in row.description
+
+    def test_jira_default_project_is_jira(self) -> None:
+        item = TodoItem(
+            url="https://jira.example.com/browse/RUN-100",
+            title="t",
+            source="jira",
+            kind="story",
+            state="Open",
+            repo="RUN",
+        )
+        row = _waiting_from_jira_todo(item, project_template="JIRA")
+        assert row is not None
+        assert row.vikunja_project_title == "JIRA"
 
 
 class TestVikunjaClientIterTasks:

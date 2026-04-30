@@ -134,12 +134,12 @@ class VikunjaConfig(BaseModel):
     #: :func:`~notegraph.github.fetch_todo` with ``[github].orgs`` / ``repos``
     #: (same as ``notegraph todo``).
     github_search_query: str = ""
-    #: ``str.format`` template for the Vikunja **project title** tasks are filed under.
-    #: Placeholders: ``repo`` (``owner/repo``), ``org``, ``repo_name``.
-    github_project_template: str = "{repo}"
-    #: Same for Jira. Placeholders: ``project_key`` (e.g. ``RUN``), ``issue_key``
-    #: (e.g. ``RUN-123``).
-    jira_project_template: str = "{project_key}"
+    #: Vikunja **project title** for GitHub tasks.  Default ``"GitHub"`` puts
+    #: everything under one project.  Use ``"{repo}"`` for per-repo projects.
+    github_project_template: str = "GitHub"
+    #: Same for Jira.  Default ``"JIRA"`` puts everything under one project.
+    #: Use ``"{project_key}"`` for per-Jira-project projects.
+    jira_project_template: str = "JIRA"
 
 
 class AppConfig(BaseModel):
