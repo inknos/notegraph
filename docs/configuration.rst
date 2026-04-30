@@ -81,6 +81,41 @@ Sections
      - ``~/Documents/Logseq/Work/pages``
      - Output directory for note files and ``worktodo.md``.
 
+``[vikunja]``
+^^^^^^^^^^^^^
+
+Used by ``notegraph todo --vikunja`` (Jira/GitHub → Vikunja). Tokens may be set here
+or via environment variables (recommended for secrets).
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 15 65
+
+   * - Key
+     - Default
+     - Description
+   * - ``base_url``
+     - ``http://127.0.0.1:3456``
+     - Vikunja server origin (API calls use ``{base_url}/api/v1``).
+   * - ``token``
+     - ``""``
+     - Vikunja API token. Prefer ``VIKUNJA_TOKEN``.
+   * - ``github_search_query``
+     - ``""``
+     - If non-empty, Vikunja sync uses this GitHub ``q`` via
+       ``fetch_todo_search``. If empty, sync uses ``[github].orgs`` and
+       ``[github].repos`` with the same queries as ``notegraph todo``.
+   * - ``github_project_template``
+     - ``"{repo}"``
+     - ``str.format`` template for the Vikunja **project title** used for
+       GitHub tasks. Placeholders: ``repo`` (``owner/repo``), ``org``,
+       ``repo_name``. Legacy style: ``"GitHub · {repo}"``.
+   * - ``jira_project_template``
+     - ``"{project_key}"``
+     - Same for Jira-backed tasks. Placeholders: ``project_key`` (e.g.
+       ``RUN``), ``issue_key`` (e.g. ``RUN-3555``). Legacy:
+       ``"Jira · {project_key}"``.
+
 Environment variables
 ---------------------
 
@@ -105,3 +140,9 @@ Environment variables override config-file values:
    * - ``GITHUB_TOKEN``
      - ``github.token``
      - Recommended over storing the token in the config file.
+   * - ``VIKUNJA_TOKEN``
+     - ``vikunja.token``
+     - Recommended over storing the token in the config file.
+   * - ``VIKUNJA_BASE_URL``
+     - ``vikunja.base_url``
+     -

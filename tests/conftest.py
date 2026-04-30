@@ -26,6 +26,11 @@ repo = "~/projects/jira"
 [github]
 token = "gh-secret"
 
+[vikunja]
+base_url = "http://vikunja.test:3456"
+token = "vk-secret"
+github_search_query = ""
+
 [logseq]
 graph_dir = "{graph_dir}"
 """

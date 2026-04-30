@@ -481,6 +481,7 @@ _SEARCH_ISSUE: dict[str, Any] = {
     "title": "Bug in networking",
     "state": "open",
     "updated_at": "2026-04-10T12:00:00Z",
+    "created_at": "2026-03-01T08:00:00Z",
     "repository_url": "https://api.github.com/repos/containers/podman",
 }
 
@@ -489,6 +490,7 @@ _SEARCH_PR: dict[str, Any] = {
     "title": "Fix networking",
     "state": "open",
     "updated_at": "2026-04-12T08:00:00Z",
+    "created_at": "2026-03-15T09:00:00Z",
     "repository_url": "https://api.github.com/repos/containers/podman",
     "pull_request": {"url": "..."},
 }
@@ -498,6 +500,7 @@ _SEARCH_PR_OTHER: dict[str, Any] = {
     "title": "Refactor layers",
     "state": "open",
     "updated_at": "2026-04-11T06:00:00Z",
+    "created_at": "2026-03-10T07:00:00Z",
     "repository_url": "https://api.github.com/repos/containers/buildah",
     "pull_request": {"url": "..."},
 }
@@ -525,8 +528,15 @@ class TestItemToTodo:
         item = _item_to_todo(_SEARCH_ISSUE)
         assert item.url == _SEARCH_ISSUE["html_url"]
 
+    def test_pr_start_date_is_creation_day(self):
+        item = _item_to_todo(_SEARCH_PR)
+        assert item.created_at == "2026-03-15"
+        assert item.start_date == "2026-03-15"
 
-# ---------------------------------------------------------------------------
+    def test_issue_creation_without_assignment_start(self):
+        item = _item_to_todo(_SEARCH_ISSUE)
+        assert item.created_at == "2026-03-01"
+        assert item.start_date == ""
 # fetch_todo
 # ---------------------------------------------------------------------------
 
@@ -538,6 +548,17 @@ class TestFetchTodo:
     def _search_resp(self, items: list[dict]) -> MagicMock:
         return _mock_response({"items": items})
 
+    def _timeline_resp(self, *, login: str = "testuser") -> MagicMock:
+        return _mock_response(
+            [
+                {
+                    "event": "assigned",
+                    "assignee": {"login": login},
+                    "created_at": "2026-04-11T12:00:00Z",
+                },
+            ],
+        )
+
     @patch("notegraph.github._build_session")
     def test_basic_org_search(self, mock_build):
         session = MagicMock()
@@ -547,6 +568,7 @@ class TestFetchTodo:
             self._search_resp([_SEARCH_ISSUE]),
             self._search_resp([_SEARCH_PR]),
             self._search_resp([]),
+            self._timeline_resp(),
         ]
 
         items = fetch_todo(orgs=["containers"])
@@ -554,6 +576,9 @@ class TestFetchTodo:
         urls = {i.url for i in items}
         assert _SEARCH_ISSUE["html_url"] in urls
         assert _SEARCH_PR["html_url"] in urls
+        by_url = {i.url: i for i in items}
+        assert by_url[_SEARCH_PR["html_url"]].start_date == "2026-03-15"
+        assert by_url[_SEARCH_ISSUE["html_url"]].start_date == "2026-04-11"
 
     @patch("notegraph.github._build_session")
     def test_dedup(self, mock_build):
@@ -578,6 +603,7 @@ class TestFetchTodo:
             self._search_resp([_SEARCH_ISSUE, _SEARCH_PR_OTHER]),
             self._search_resp([_SEARCH_PR]),
             self._search_resp([]),
+            self._timeline_resp(),
         ]
 
         items = fetch_todo(orgs=["containers"])
@@ -593,6 +619,7 @@ class TestFetchTodo:
             self._search_resp([_SEARCH_ISSUE]),
             self._search_resp([]),
             self._search_resp([]),
+            self._timeline_resp(),
         ]
 
         items = fetch_todo(repos=["containers/podman"])
@@ -611,6 +638,7 @@ class TestFetchTodo:
             self._search_resp([_SEARCH_PR_OTHER]),
             self._search_resp([]),
             self._search_resp([]),
+            self._timeline_resp(),
         ]
 
         items = fetch_todo(orgs=["containers"], repos=["containers/buildah"])

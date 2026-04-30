@@ -353,6 +353,10 @@ class TodoItem(BaseModel):
     state: str
     repo: str = ""
     updated_at: str = ""
+    #: Issue/PR creation day ``YYYY-MM-DD`` (from upstream API).
+    created_at: str = ""
+    #: Scheduling start day ``YYYY-MM-DD`` (e.g. assignment or PR creation).
+    start_date: str = ""
 
 
 # ---------------------------------------------------------------------------

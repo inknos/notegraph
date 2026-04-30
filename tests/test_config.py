@@ -15,6 +15,8 @@ class TestValidToml:
         assert cfg.jira.token == "jira-secret"
         assert cfg.jira.repo == "~/projects/jira"
         assert cfg.github.token == "gh-secret"
+        assert cfg.vikunja.base_url == "http://vikunja.test:3456"
+        assert cfg.vikunja.token == "vk-secret"
 
     def test_logseq_graph_dir(self, sample_config_toml):
         cfg = load_config(sample_config_toml)
@@ -34,6 +36,13 @@ class TestPartialToml:
         cfg_path.write_text("", encoding="utf-8")
         cfg = load_config(cfg_path)
         assert cfg.github.token == ""
+
+    def test_missing_vikunja_section(self, tmp_path):
+        cfg_path = tmp_path / "partial.toml"
+        cfg_path.write_text("", encoding="utf-8")
+        cfg = load_config(cfg_path)
+        assert cfg.vikunja.token == ""
+        assert "127.0.0.1:3456" in cfg.vikunja.base_url
 
 
 class TestEmptyConfig:
@@ -83,6 +92,16 @@ class TestEnvVarOverrides:
         monkeypatch.setenv("GITHUB_TOKEN", "env-gh-token")
         cfg = load_config(sample_config_toml)
         assert cfg.github.token == "env-gh-token"
+
+    def test_vikunja_token_from_env(self, sample_config_toml, monkeypatch):
+        monkeypatch.setenv("VIKUNJA_TOKEN", "env-vk-token")
+        cfg = load_config(sample_config_toml)
+        assert cfg.vikunja.token == "env-vk-token"
+
+    def test_vikunja_base_url_from_env(self, sample_config_toml, monkeypatch):
+        monkeypatch.setenv("VIKUNJA_BASE_URL", "http://custom:9999")
+        cfg = load_config(sample_config_toml)
+        assert cfg.vikunja.base_url == "http://custom:9999"
 
     def test_jira_email_from_env(self, sample_config_toml, monkeypatch):
         monkeypatch.setenv("JIRA_EMAIL", "env@example.com")

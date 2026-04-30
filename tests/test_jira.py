@@ -448,6 +448,8 @@ _SEARCH_ISSUE: dict[str, Any] = {
         "issuetype": {"name": "Bug"},
         "project": {"key": "RUN"},
         "updated": "2026-04-10T12:00:00.000+0000",
+        "created": "2026-01-05T12:00:00.000+0000",
+        "assignee": {"accountId": "acc-run100"},
     },
 }
 
@@ -462,6 +464,8 @@ class TestItemToTodo:
         assert item.state == "In Progress"
         assert item.repo == "RUN"
         assert item.updated_at == "2026-04-10"
+        assert item.created_at == "2026-01-05"
+        assert item.start_date == ""
 
     def test_missing_fields_defaults(self):
         issue: dict[str, Any] = {"key": "X-1", "fields": {}}
@@ -472,6 +476,8 @@ class TestItemToTodo:
         assert item.state == "Unknown"
         assert item.repo == ""
         assert item.updated_at == ""
+        assert item.created_at == ""
+        assert item.start_date == ""
 
     def test_no_fields_key(self):
         issue: dict[str, Any] = {"key": "Y-2"}
@@ -504,6 +510,22 @@ class TestFetchTodo:
         session.post.return_value = _mock_response(
             _search_page([_SEARCH_ISSUE]),
         )
+        session.get.return_value = _mock_response(
+            {
+                "fields": {
+                    "created": "2026-01-05T12:00:00.000+0000",
+                    "assignee": {"accountId": "acc-run100"},
+                },
+                "changelog": {
+                    "histories": [
+                        {
+                            "created": "2026-02-15T11:00:00.000+0000",
+                            "items": [{"field": "assignee", "to": "acc-run100"}],
+                        },
+                    ],
+                },
+            },
+        )
 
         result = fetch_todo(
             endpoint="redhat.atlassian.net",
@@ -513,6 +535,7 @@ class TestFetchTodo:
         )
         assert len(result) == 1
         assert result[0].title == "Fix the widget"
+        assert result[0].start_date == "2026-02-15"
 
         call_args = session.post.call_args
         body = call_args.kwargs["json"]
@@ -532,6 +555,8 @@ class TestFetchTodo:
                 "issuetype": {"name": "Task"},
                 "project": {"key": "RUN"},
                 "updated": "2026-04-01T00:00:00.000+0000",
+                "created": "2026-03-01T00:00:00.000+0000",
+                "assignee": {"accountId": "u1"},
             },
         }
         issue_b = {
@@ -542,13 +567,34 @@ class TestFetchTodo:
                 "issuetype": {"name": "Story"},
                 "project": {"key": "RUN"},
                 "updated": "2026-04-10T00:00:00.000+0000",
+                "created": "2026-03-15T00:00:00.000+0000",
+                "assignee": {"accountId": "u1"},
             },
         }
 
-        session.post.return_value.__enter__ = MagicMock()
         session.post.side_effect = [
             _mock_response(_search_page([issue_a], next_token="page2")),
             _mock_response(_search_page([issue_b])),
+        ]
+        session.get.side_effect = [
+            _mock_response(
+                {
+                    "fields": {
+                        "created": "2026-03-15T00:00:00.000+0000",
+                        "assignee": {"accountId": "u1"},
+                    },
+                    "changelog": {"histories": []},
+                },
+            ),
+            _mock_response(
+                {
+                    "fields": {
+                        "created": "2026-03-01T00:00:00.000+0000",
+                        "assignee": {"accountId": "u1"},
+                    },
+                    "changelog": {"histories": []},
+                },
+            ),
         ]
 
         result = fetch_todo(
@@ -558,6 +604,8 @@ class TestFetchTodo:
         assert len(result) == 2
         assert result[0].title == "Newer"
         assert result[1].title == "Older"
+        assert result[0].start_date == "2026-03-15"
+        assert result[1].start_date == "2026-03-01"
 
         second_call_body = session.post.call_args_list[1].kwargs["json"]
         assert second_call_body["nextPageToken"] == "page2"

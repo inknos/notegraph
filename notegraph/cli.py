@@ -9,6 +9,8 @@ Global options (before the subcommand):
 
     --config PATH         Path to TOML config file
                           (default: ~/.config/notegraph/config.toml).
+    -v, --verbose         Debug logging for all commands.
+    --dry-run             Preview without writing notes/worktodo or Vikunja mutations.
 
 ``fetch`` options:
 
@@ -29,11 +31,17 @@ Global options (before the subcommand):
 
     --source github|jira  Filter to one source (default: both).
     --json                Output JSON array.
-    --sync                Write worktodo.md and fetch note triplets.
+    --sync                Write worktodo.md and fetch note triplets (Logseq).
+    --vikunja             Push waiting items from Jira/GitHub into Vikunja.
+    --leave-vikunja-stale Keep Vikunja mirrors open when gone upstream (default: mark done).
     --org ORG             GitHub org to search (repeatable; overrides config).
     --repo OWNER/REPO     GitHub repo to search (repeatable; overrides config).
-    --jql QUERY           Jira JQL override.
+    --jql QUERY           Jira JQL override (listing, --sync, and --vikunja).
     --dest-dir DIR        Override output directory.
+
+When using ``--vikunja``, the default is to **mark Vikunja tasks done** if they
+drop off the Jira/GitHub waiting query (so Vikunja matches upstream). Pass
+``--leave-vikunja-stale`` to **leave those mirrors open** instead.
 
 Examples::
 
@@ -44,6 +52,10 @@ Examples::
     notegraph todo --source github --org containers
     notegraph todo --json
     notegraph todo --sync
+    notegraph todo --vikunja
+    notegraph todo --sync --vikunja
+    notegraph --dry-run todo --vikunja
+    notegraph -v todo --vikunja --jql 'assignee = currentUser() ORDER BY updated DESC'
 """
 
 from __future__ import annotations
@@ -56,6 +68,7 @@ import tomllib
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
+import requests
 from cyclopts import App, Group, Parameter
 from pydantic import BaseModel
 
@@ -111,6 +124,23 @@ class LogseqConfig(BaseModel):
     graph_dir: str = "~/Documents/Logseq/Work/pages"
 
 
+class VikunjaConfig(BaseModel):
+    """Vikunja target + sync defaults for ``notegraph todo --vikunja``."""
+
+    base_url: str = "http://127.0.0.1:3456"
+    token: str = ""
+    #: Optional GitHub ``q`` string for Vikunja sync. Empty means use
+    #: :func:`~notegraph.github.fetch_todo` with ``[github].orgs`` / ``repos``
+    #: (same as ``notegraph todo``).
+    github_search_query: str = ""
+    #: ``str.format`` template for the Vikunja **project title** tasks are filed under.
+    #: Placeholders: ``repo`` (``owner/repo``), ``org``, ``repo_name``.
+    github_project_template: str = "{repo}"
+    #: Same for Jira. Placeholders: ``project_key`` (e.g. ``RUN``), ``issue_key``
+    #: (e.g. ``RUN-123``).
+    jira_project_template: str = "{project_key}"
+
+
 class AppConfig(BaseModel):
     """Full application config, assembled from TOML + env vars.
 
@@ -121,6 +151,7 @@ class AppConfig(BaseModel):
     jira: JiraConfig = JiraConfig()
     github: GitHubConfig = GitHubConfig()
     logseq: LogseqConfig = LogseqConfig()
+    vikunja: VikunjaConfig = VikunjaConfig()
 
     @property
     def dest_dir(self) -> str:
@@ -155,6 +186,7 @@ def _apply_env_overrides(data: dict[str, Any]) -> None:
     """
     jira = data.setdefault("jira", {})
     github = data.setdefault("github", {})
+    vikunja = data.setdefault("vikunja", {})
 
     if token := os.environ.get("JIRA_TOKEN"):
         jira["token"] = token
@@ -164,6 +196,10 @@ def _apply_env_overrides(data: dict[str, Any]) -> None:
         jira["endpoint"] = endpoint
     if token := os.environ.get("GITHUB_TOKEN"):
         github["token"] = token
+    if token := os.environ.get("VIKUNJA_TOKEN"):
+        vikunja["token"] = token
+    if base_url := os.environ.get("VIKUNJA_BASE_URL"):
+        vikunja["base_url"] = base_url
 
 
 # ---------------------------------------------------------------------------
@@ -171,6 +207,15 @@ def _apply_env_overrides(data: dict[str, Any]) -> None:
 # ---------------------------------------------------------------------------
 
 _cfg: AppConfig | None = None
+_config_path: Path | None = None
+_cli_dry_run: bool = False
+
+
+def _get_config_path() -> Path:
+    """Return the config path from the meta launcher, or the default."""
+    if _config_path is not None:
+        return _config_path
+    return DEFAULT_CONFIG_PATH
 
 
 def _get_config() -> AppConfig:
@@ -197,10 +242,28 @@ def launcher(
         Path,
         Parameter(help="Path to config file."),
     ] = DEFAULT_CONFIG_PATH,
+    verbose: Annotated[
+        bool,
+        Parameter("--verbose", alias="-v", help="Enable debug logging."),
+    ] = False,
+    dry_run: Annotated[
+        bool,
+        Parameter(
+            "--dry-run",
+            help="Preview without writing notes / worktodo, or without Vikunja writes.",
+        ),
+    ] = False,
 ) -> None:
     """Launch notegraph with global options."""
-    global _cfg  # noqa: PLW0603
+    global _cfg, _config_path, _cli_dry_run  # noqa: PLW0603
     _cfg = load_config(config)
+    _config_path = config
+    _cli_dry_run = dry_run
+    logging.basicConfig(
+        level=logging.DEBUG if verbose else logging.INFO,
+        format="%(levelname)s %(message)s",
+        force=True,
+    )
     app(tokens)
 
 
@@ -321,6 +384,26 @@ class TodoArgs(BaseModel):
         bool,
         Parameter(help="Write worktodo.md and fetch note triplets for each item."),
     ] = False
+    vikunja: Annotated[
+        bool,
+        Parameter(
+            "--vikunja",
+            help=(
+                "Push Jira/GitHub waiting items into Vikunja "
+                "(uses [vikunja] / [github] / [jira]; not filtered by --source)."
+            ),
+        ),
+    ] = False
+    leave_vikunja_stale: Annotated[
+        bool,
+        Parameter(
+            "--leave-vikunja-stale",
+            help=(
+                "With --vikunja: keep mirrored Vikunja tasks open when they disappear "
+                "from Jira/GitHub (default: mark those mirrors done)."
+            ),
+        ),
+    ] = False
     org: Annotated[
         list[str],
         Parameter(help="GitHub org to search (repeatable, overrides config)."),
@@ -394,6 +477,10 @@ def _fetch_github(args: FetchArgs, cfg: AppConfig, dest: str) -> None:
         sys.stdout.write(json.dumps(out, indent=2) + "\n")
         return
 
+    if _cli_dry_run:
+        sys.stderr.write(f"[dry-run] would write notes for GitHub {args.target}\n")
+        return
+
     writer.write(content, ref, dest, kinds=kinds, replace=args.replace)
 
 
@@ -422,6 +509,10 @@ def _fetch_jira(args: FetchArgs, cfg: AppConfig, dest: str) -> None:
         sys.stdout.write(json.dumps(out, indent=2) + "\n")
         return
 
+    if _cli_dry_run:
+        sys.stderr.write(f"[dry-run] would write notes for Jira {args.target}\n")
+        return
+
     writer.write(content, ref, dest, kinds=kinds, replace=args.replace)
     _chain_github(content, dest, cfg=cfg, replace=args.replace)
 
@@ -431,26 +522,52 @@ _DEFAULT_TODO_ARGS = TodoArgs()
 
 @app.command
 def todo(args: Annotated[TodoArgs, Parameter(name="*")] = _DEFAULT_TODO_ARGS) -> None:
-    """List open items and optionally sync worktodo.md + note triplets.
+    """List open items and optionally sync Logseq worktodo or Vikunja.
 
     Without flags, prints URLs from both GitHub and Jira.
     Use ``--source`` to filter to one platform.
-    Use ``--json`` for machine-readable output.
+    Use ``--json`` for machine-readable output (cannot combine with ``--vikunja``).
     Use ``--sync`` to write ``worktodo.md`` and fetch/write note files
     for every listed item.
+    Use ``--vikunja`` to mirror waiting items into Vikunja (see config ``[vikunja]``).
+    ``--sync`` and ``--vikunja`` may be combined.
     """
     cfg = _get_config()
     dest = args.dest_dir or cfg.dest_dir
 
-    items = _collect_todo_items(args, cfg)
+    if args.json_output and args.vikunja:
+        sys.stderr.write("Error: --json cannot be combined with --vikunja.\n")
+        raise SystemExit(1)
 
     if args.json_output:
+        items = _collect_todo_items(args, cfg)
         out = [item.model_dump() for item in items]
         sys.stdout.write(json.dumps(out, indent=2) + "\n")
         return
 
+    items: list[TodoItem] = []
+    if args.sync or not args.vikunja:
+        items = _collect_todo_items(args, cfg)
+
     if args.sync:
         _sync_worktodo(items, dest, cfg)
+
+    if args.vikunja:
+        from notegraph.vikunja_sync import run_sync  # noqa: PLC0415
+
+        try:
+            code = run_sync(
+                config_path=_get_config_path(),
+                dry_run=_cli_dry_run,
+                complete_stale=not args.leave_vikunja_stale,
+                jira_jql=args.jql,
+            )
+        except requests.HTTPError:
+            code = 1
+        if code != 0:
+            raise SystemExit(code)
+
+    if args.sync or args.vikunja:
         return
 
     for item in items:
@@ -510,6 +627,12 @@ def _sync_worktodo(
         dest: Output directory.
         cfg: Application config.
     """
+    if _cli_dry_run:
+        sys.stderr.write(
+            f"[dry-run] would write worktodo and fetch notes for {len(items)} item(s)\n",
+        )
+        return
+
     worktodo_path = Path(dest) / "worktodo.md"
     existing = parse_worktodo(worktodo_path)
     merged = merge_worktodo(existing, items)

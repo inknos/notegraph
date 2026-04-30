@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import requests
 from atlas_doc_parser.api import NodeDoc
@@ -196,6 +196,67 @@ def fetch(
 # Activity search (--todo)
 # ---------------------------------------------------------------------------
 
+
+def _browse_issue_key(url: str) -> str | None:
+    """Parse ``FOO-123`` from a Jira browse URL."""
+    m = re.search(r"/browse/([A-Za-z][A-Za-z0-9]+-\d+)", url)
+    return m.group(1) if m else None
+
+
+def _jira_assignment_start_iso(payload: dict[str, Any]) -> str:
+    """``YYYY-MM-DD`` when the current assignee was last set, else issue creation day."""
+    fields = payload.get("fields") or {}
+    created = (fields.get("created") or "")[:10]
+    assignee = fields.get("assignee")
+    account_id = assignee.get("accountId") if isinstance(assignee, dict) else None
+    if not account_id:
+        return created
+    latest: str | None = None
+    changelog = payload.get("changelog") or {}
+    for hist in changelog.get("histories", []):
+        ts = hist.get("created")
+        if not ts:
+            continue
+        for ch in hist.get("items", []):
+            if ch.get("field") != "assignee":
+                continue
+            if ch.get("to") == account_id and (latest is None or ts > latest):
+                latest = ts
+    return (latest[:10] if latest else created) or ""
+
+
+def _enrich_jira_todo_start_dates(
+    session: requests.Session,
+    endpoint: str,
+    items: list[TodoItem],
+) -> list[TodoItem]:
+    """Set ``start_date`` from assignee changelog (fallback: ``created_at``)."""
+    out: list[TodoItem] = []
+    for item in items:
+        key = _browse_issue_key(item.url)
+        if not key:
+            out.append(item.model_copy(update={"start_date": item.created_at}))
+            continue
+        detail_url = f"https://{endpoint}/rest/api/{_API_VERSION}/issue/{key}"
+        iso = item.created_at
+        try:
+            resp = session.get(
+                detail_url,
+                params={"fields": "created,assignee", "expand": "changelog"},
+            )
+            try:
+                resp.raise_for_status()
+            except requests.HTTPError as exc:
+                raise FetchError(resp.status_code, resp.text) from exc
+            parsed = _jira_assignment_start_iso(resp.json())
+            if parsed:
+                iso = parsed
+        except FetchError as exc:
+            logger.debug("Jira issue %s detail: %s", key, exc)
+        out.append(item.model_copy(update={"start_date": iso}))
+    return out
+
+
 _SEARCH_MAX_RESULTS = 100
 
 
@@ -221,6 +282,8 @@ def _item_to_todo(issue: dict, endpoint: str) -> TodoItem:
         state=(fields.get("status") or {}).get("name", "Unknown"),
         repo=project_key,
         updated_at=(fields.get("updated") or "")[:10],
+        created_at=(fields.get("created") or "")[:10],
+        start_date="",
     )
 
 
@@ -245,6 +308,9 @@ def fetch_todo(
 
     Returns:
         List of ``TodoItem`` objects sorted by ``updated_at`` descending.
+        Each issue triggers one ``GET /issue/{key}?expand=changelog`` to set
+        ``start_date`` from the latest assignee change to the current assignee
+        (fallback: issue creation day).
 
     Raises:
         FetchError: On any non-2xx response.
@@ -265,7 +331,15 @@ def fetch_todo(
     while True:
         body: dict[str, str | int | list[str]] = {
             "jql": jql,
-            "fields": ["summary", "status", "issuetype", "updated", "project"],
+            "fields": [
+                "summary",
+                "status",
+                "issuetype",
+                "updated",
+                "project",
+                "assignee",
+                "created",
+            ],
             "maxResults": _SEARCH_MAX_RESULTS,
         }
         if next_token is not None:
@@ -283,4 +357,4 @@ def fetch_todo(
             break
 
     items.sort(key=lambda t: t.updated_at, reverse=True)
-    return items
+    return _enrich_jira_todo_start_dates(session, endpoint, items)

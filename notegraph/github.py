@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from typing import TYPE_CHECKING
 
 import requests
@@ -228,6 +229,93 @@ def _search_items(
     return items
 
 
+_GITHUB_ISSUE_HTML_URL_RE = re.compile(
+    r"^https://github\.com/(?P<owner>[^/]+)/(?P<repo>[^/]+)/issues/(?P<num>\d+)/?$",
+)
+
+
+def _github_timeline_events(
+    session: requests.Session,
+    owner: str,
+    repo: str,
+    issue_number: int,
+) -> list[dict]:
+    """Fetch paginated timeline events for a repository issue."""
+    headers = {"Accept": "application/vnd.github+json"}
+    url: str | None = (
+        f"{_API_BASE}/repos/{owner}/{repo}/issues/{issue_number}/timeline"
+        f"?per_page={_SEARCH_PER_PAGE}"
+    )
+    events: list[dict] = []
+    while url:
+        resp = session.get(url, headers=headers)
+        if not resp.ok:
+            raise FetchError(resp.status_code, resp.text)
+        batch = resp.json()
+        if isinstance(batch, list):
+            events.extend(batch)
+        url = resp.links.get("next", {}).get("url")
+    return events
+
+
+def _github_latest_assignment_date_iso(
+    session: requests.Session,
+    owner: str,
+    repo: str,
+    issue_number: int,
+    assignee_login: str,
+) -> str | None:
+    """Latest ``YYYY-MM-DD`` from an *assigned* event for *assignee_login*, if any."""
+    if not assignee_login.strip():
+        return None
+    latest: str | None = None
+    for event in _github_timeline_events(session, owner, repo, issue_number):
+        if event.get("event") != "assigned":
+            continue
+        assignee = event.get("assignee") or {}
+        if assignee.get("login") != assignee_login:
+            continue
+        created = event.get("created_at")
+        if created and (latest is None or created > latest):
+            latest = created
+    return latest[:10] if latest else None
+
+
+def _apply_github_issue_start_dates(
+    session: requests.Session,
+    username: str,
+    items: list[TodoItem],
+) -> list[TodoItem]:
+    """Set ``start_date`` on issues via assignment timeline; PRs already use creation date."""
+    out: list[TodoItem] = []
+    for item in items:
+        if item.kind == "pull_request":
+            out.append(item)
+            continue
+        m = _GITHUB_ISSUE_HTML_URL_RE.match(item.url.rstrip("/"))
+        assigned: str | None = None
+        if m:
+            try:
+                assigned = _github_latest_assignment_date_iso(
+                    session,
+                    m["owner"],
+                    m["repo"],
+                    int(m["num"]),
+                    username,
+                )
+            except FetchError as exc:
+                logger.debug(
+                    "GitHub timeline %s/%s#%s: %s",
+                    m["owner"],
+                    m["repo"],
+                    m["num"],
+                    exc,
+                )
+        start = assigned or item.created_at
+        out.append(item.model_copy(update={"start_date": start}))
+    return out
+
+
 def _item_to_todo(item: dict) -> TodoItem:
     """Convert a raw GitHub search result item to a ``TodoItem``.
 
@@ -242,6 +330,8 @@ def _item_to_todo(item: dict) -> TodoItem:
     if repo_full:
         repo_full = "/".join(repo_full.rsplit("/", 2)[-2:])
 
+    created_day = (item.get("created_at") or "")[:10]
+
     return TodoItem(
         url=item["html_url"],
         title=item["title"],
@@ -250,6 +340,8 @@ def _item_to_todo(item: dict) -> TodoItem:
         state=item["state"],
         repo=repo_full,
         updated_at=item.get("updated_at", "")[:10],
+        created_at=created_day,
+        start_date=created_day if is_pr else "",
     )
 
 
@@ -264,6 +356,9 @@ def fetch_todo(
     Mirrors the logic of ``todo-page.sh``: for each org/repo scope,
     queries for issues+involves, PRs+involves, and PRs+review-requested.
     Results are deduplicated by URL and sorted by ``updated_at`` descending.
+    Open **issues** trigger one extra timeline API request each to resolve the
+    latest **assignment** date for the authenticated user (pull requests use
+    creation date only).
 
     Args:
         orgs: GitHub organisations to search (``--owner`` scope).
@@ -324,4 +419,44 @@ def fetch_todo(
             deduped.append(_item_to_todo(item))
 
     deduped.sort(key=lambda t: t.updated_at, reverse=True)
-    return deduped
+    return _apply_github_issue_start_dates(session, username, deduped)
+
+
+def fetch_todo_search(*, query: str, token: str = "") -> list[TodoItem]:
+    """Search GitHub issues/PRs with a single ``q`` string (paginated).
+
+    Uses the same REST helpers as :func:`fetch_todo`. Intended for callers
+    that need one global query (e.g. ``notegraph todo --vikunja``) instead of per-org/repo
+    scopes.
+
+    Args:
+        query: Raw GitHub issue search query (must be non-empty after strip).
+        token: GitHub personal access token.
+
+    Returns:
+        Deduplicated results sorted by ``updated_at`` descending. Empty *query*
+        yields an empty list without calling the API.
+        Issues include assignment-derived ``start_date`` (see :func:`fetch_todo`).
+
+    Raises:
+        FetchError: On any non-2xx response.
+    """
+    q = query.strip()
+    if not q:
+        return []
+
+    session = _build_session(token)
+    username = _get_username(session)
+    logger.info("GitHub user: %s", username)
+    raw_items = _search_items(session, q)
+
+    seen: set[str] = set()
+    deduped: list[TodoItem] = []
+    for item in raw_items:
+        url = item["html_url"]
+        if url not in seen:
+            seen.add(url)
+            deduped.append(_item_to_todo(item))
+
+    deduped.sort(key=lambda t: t.updated_at, reverse=True)
+    return _apply_github_issue_start_dates(session, username, deduped)

@@ -25,3 +25,14 @@ repos = []   # GitHub repos for --todo (e.g. ["myorg/tool"])
 
 [logseq]
 graph_dir = "~/Documents/Logseq/Work/pages"
+
+[vikunja]
+# Vikunja sync (`notegraph todo --vikunja`). Prefer env VIKUNJA_TOKEN over storing secrets here.
+base_url = "http://127.0.0.1:3456"
+token = ""
+# Optional raw GitHub issue-search ``q``. Empty = use [github].orgs/repos like ``notegraph todo``.
+github_search_query = ""
+# Vikunja project titles (str.format). Defaults: plain repo / project key.
+# github_project_template = "{repo}"          # e.g. containers/podman
+# jira_project_template = "{project_key}"    # e.g. RUN
+# Legacy: "GitHub · {repo}" / "Jira · {project_key}"

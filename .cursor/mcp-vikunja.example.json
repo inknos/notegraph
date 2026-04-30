@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "vikunja": {
+      "type": "stdio",
+      "command": "/home/nsella/Documents/personal_projects/notegraph/scripts/vikunja-openapi-mcp.sh",
+      "env": {
+        "VIKUNJA_API_BASE_URL": "http://127.0.0.1:3456",
+        "VIKUNJA_OPENAPI_SPEC": "http://127.0.0.1:3456/api/v1/docs.json",
+        "VIKUNJA_TOKEN": "your-vikunja-api-token"
+      }
+    }
+  }
+}
