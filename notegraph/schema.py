@@ -359,6 +359,8 @@ class TodoItem(BaseModel):
     start_date: str = ""
     #: Raw upstream priority name (e.g. Jira ``"Major"``); empty for GitHub.
     priority: str = ""
+    #: Computed due day ``YYYY-MM-DD`` (e.g. 1 week after last user comment or @mention).
+    due_date: str = ""
 
 
 # ---------------------------------------------------------------------------

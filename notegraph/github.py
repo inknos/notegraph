@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime
 import logging
 import re
 from typing import TYPE_CHECKING
@@ -320,6 +321,75 @@ def _apply_github_issue_start_dates(
     return out
 
 
+_GITHUB_HTML_URL_RE = re.compile(
+    r"^https://github\.com/(?P<owner>[^/]+)/(?P<repo>[^/]+)/(?:issues|pull)/(?P<num>\d+)/?$",
+)
+
+_DUE_DATE_OFFSET = datetime.timedelta(days=7)
+
+
+def _compute_due_date(
+    session: requests.Session,
+    owner: str,
+    repo: str,
+    number: int,
+    username: str,
+) -> str:
+    """Compute a due date from the latest qualifying comment.
+
+    A qualifying comment is one where the authenticated user posted
+    (ball is in someone else's court) or someone mentioned ``@username``
+    (they're waiting on the user).  Returns ``YYYY-MM-DD`` 7 days after
+    the most recent such comment, or ``""`` when none qualifies.
+    """
+    try:
+        comments = _fetch_comments(session, owner, repo, number)
+    except FetchError as exc:
+        logger.debug("Comments %s/%s#%s: %s", owner, repo, number, exc)
+        return ""
+    mention_pattern = f"@{username}"
+    latest: str = ""
+    for comment in comments:
+        is_own = comment.author == username
+        is_mention = mention_pattern in comment.body
+        if (is_own or is_mention) and comment.date > latest:
+            latest = comment.date
+    if not latest:
+        return ""
+    try:
+        base = datetime.date.fromisoformat(latest)
+    except ValueError:
+        return ""
+    return (base + _DUE_DATE_OFFSET).isoformat()
+
+
+def _apply_github_due_dates(
+    session: requests.Session,
+    username: str,
+    items: list[TodoItem],
+) -> list[TodoItem]:
+    """Set ``due_date`` on todo items based on comment activity.
+
+    For each item, fetches issue comments and looks for the user's own
+    posts or ``@username`` mentions.  The due date is 7 days after the
+    latest qualifying comment.
+    """
+    out: list[TodoItem] = []
+    for item in items:
+        m = _GITHUB_HTML_URL_RE.match(item.url.rstrip("/"))
+        due = ""
+        if m:
+            due = _compute_due_date(
+                session,
+                m["owner"],
+                m["repo"],
+                int(m["num"]),
+                username,
+            )
+        out.append(item.model_copy(update={"due_date": due}) if due else item)
+    return out
+
+
 def _item_to_todo(item: dict) -> TodoItem:
     """Convert a raw GitHub search result item to a ``TodoItem``.
 
@@ -423,7 +493,8 @@ def fetch_todo(
             deduped.append(_item_to_todo(item))
 
     deduped.sort(key=lambda t: t.updated_at, reverse=True)
-    return _apply_github_issue_start_dates(session, username, deduped)
+    items = _apply_github_issue_start_dates(session, username, deduped)
+    return _apply_github_due_dates(session, username, items)
 
 
 def fetch_todo_search(*, query: str, token: str = "") -> list[TodoItem]:
@@ -463,4 +534,5 @@ def fetch_todo_search(*, query: str, token: str = "") -> list[TodoItem]:
             deduped.append(_item_to_todo(item))
 
     deduped.sort(key=lambda t: t.updated_at, reverse=True)
-    return _apply_github_issue_start_dates(session, username, deduped)
+    items = _apply_github_issue_start_dates(session, username, deduped)
+    return _apply_github_due_dates(session, username, items)

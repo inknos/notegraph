@@ -217,6 +217,7 @@ class WaitingItem:
     vikunja_project_title: str
     start_date: str = ""
     priority: int = 0
+    due_date: str = ""
 
 
 def _sync_marker(sync_id: str) -> str:
@@ -264,6 +265,7 @@ def _waiting_from_jira_todo(item: TodoItem, *, project_template: str) -> Waiting
         vikunja_project_title=vik_title,
         start_date=(item.start_date or "").strip(),
         priority=_jira_priority_to_vikunja(item.priority),
+        due_date=(item.due_date or "").strip(),
     )
 
 
@@ -303,6 +305,7 @@ def _waiting_from_github_todo(item: TodoItem, *, project_template: str) -> Waiti
         description=description,
         vikunja_project_title=vik_title,
         start_date=(item.start_date or "").strip(),
+        due_date=(item.due_date or "").strip(),
     )
 
 
@@ -566,6 +569,9 @@ def _upsert_project_items(
             want_start = _normalize_vikunja_date((item.start_date or "").strip())
             if want_start == _VIKUNJA_ZERO_DATE:
                 want_start = ""
+            want_due = _normalize_vikunja_date((item.due_date or "").strip())
+            if want_due == _VIKUNJA_ZERO_DATE:
+                want_due = ""
             want_reminders = _weekly_reminders(want_start)
             want_reminder_ts = sorted(r["reminder"] for r in want_reminders)
             task_payload: dict[str, Any] = {
@@ -576,6 +582,8 @@ def _upsert_project_items(
             }
             if want_start:
                 task_payload["start_date"] = want_start
+            if want_due:
+                task_payload["due_date"] = want_due
             if want_reminders:
                 task_payload["reminders"] = want_reminders
             if item.sync_id in existing:
@@ -584,16 +592,20 @@ def _upsert_project_items(
                 cur_title = current.get("title")
                 cur_desc = current.get("description") or ""
                 cur_start = (current.get("start_date") or "").strip()
+                cur_due = (current.get("due_date") or "").strip()
                 cur_priority = current.get("priority", 0)
                 cur_reminder_ts = sorted(
                     r.get("reminder", "") for r in (current.get("reminders") or [])
                 )
                 if cur_start == _VIKUNJA_ZERO_DATE:
                     cur_start = ""
+                if cur_due == _VIKUNJA_ZERO_DATE:
+                    cur_due = ""
                 needs_update = (
                     cur_title != item.title
                     or cur_desc != item.description
                     or cur_start != want_start
+                    or cur_due != want_due
                     or cur_priority != item.priority
                     or cur_reminder_ts != want_reminder_ts
                 )
@@ -608,6 +620,8 @@ def _upsert_project_items(
                     }
                     if want_start:
                         update_body["start_date"] = want_start
+                    if want_due:
+                        update_body["due_date"] = want_due
                     if want_reminders:
                         update_body["reminders"] = want_reminders
                     logger.debug(

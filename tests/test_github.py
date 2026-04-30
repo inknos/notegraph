@@ -559,6 +559,9 @@ class TestFetchTodo:
             ],
         )
 
+    def _comments_resp(self, comments: list[dict] | None = None) -> MagicMock:
+        return _mock_response(comments or [])
+
     @patch("notegraph.github._build_session")
     def test_basic_org_search(self, mock_build):
         session = MagicMock()
@@ -569,6 +572,8 @@ class TestFetchTodo:
             self._search_resp([_SEARCH_PR]),
             self._search_resp([]),
             self._timeline_resp(),
+            self._comments_resp(),
+            self._comments_resp(),
         ]
 
         items = fetch_todo(orgs=["containers"])
@@ -589,6 +594,7 @@ class TestFetchTodo:
             self._search_resp([_SEARCH_PR]),
             self._search_resp([_SEARCH_PR]),
             self._search_resp([_SEARCH_PR]),
+            self._comments_resp(),
         ]
 
         items = fetch_todo(orgs=["containers"])
@@ -604,6 +610,9 @@ class TestFetchTodo:
             self._search_resp([_SEARCH_PR]),
             self._search_resp([]),
             self._timeline_resp(),
+            self._comments_resp(),
+            self._comments_resp(),
+            self._comments_resp(),
         ]
 
         items = fetch_todo(orgs=["containers"])
@@ -620,6 +629,7 @@ class TestFetchTodo:
             self._search_resp([]),
             self._search_resp([]),
             self._timeline_resp(),
+            self._comments_resp(),
         ]
 
         items = fetch_todo(repos=["containers/podman"])
@@ -639,6 +649,8 @@ class TestFetchTodo:
             self._search_resp([]),
             self._search_resp([]),
             self._timeline_resp(),
+            self._comments_resp(),
+            self._comments_resp(),
         ]
 
         items = fetch_todo(orgs=["containers"], repos=["containers/buildah"])
