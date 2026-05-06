@@ -13,7 +13,7 @@ class TestCheck:
         triplet = check(sample_github_ref, str(tmp_dest_dir))
         assert triplet.md.exists is False
         assert triplet.note.exists is False
-        assert triplet.cursor.exists is False
+        assert triplet.agent.exists is False
 
     def test_github_with_existing_files(self, tmp_dest_dir, sample_github_ref):
         pi = PathInfo.from_github(sample_github_ref, str(tmp_dest_dir))
@@ -23,7 +23,7 @@ class TestCheck:
         triplet = check(sample_github_ref, str(tmp_dest_dir))
         assert triplet.md.exists is True
         assert triplet.note.exists is True
-        assert triplet.cursor.exists is False
+        assert triplet.agent.exists is False
 
     def test_jira(self, tmp_dest_dir, sample_jira_ref):
         triplet = check(sample_jira_ref, str(tmp_dest_dir))
@@ -42,7 +42,7 @@ class TestWriteFullTriplet:
         pi = PathInfo.from_github(sample_github_ref, str(tmp_dest_dir))
         assert Path(pi.md_path).is_file()
         assert Path(pi.note_path).is_file()
-        assert Path(pi.cursor_path).is_file()
+        assert Path(pi.agent_path).is_file()
 
     def test_md_contains_description(self, tmp_dest_dir, sample_note_content, sample_github_ref):
         write(sample_note_content, sample_github_ref, str(tmp_dest_dir))
@@ -65,7 +65,7 @@ class TestWriteFullTriplet:
 
         pi = PathInfo.from_github(sample_github_ref, str(tmp_dest_dir))
         md_text = Path(pi.md_path).read_text(encoding="utf-8")
-        assert "[[github.com/containers/podman/pull/24126/cursor]]" in md_text
+        assert "[[github.com/containers/podman/pull/24126/agent]]" in md_text
         assert "[[github.com/containers/podman/pull/24126/note]]" in md_text
 
     def test_note_contains_skeleton(self, tmp_dest_dir, sample_note_content, sample_github_ref):
@@ -77,7 +77,7 @@ class TestWriteFullTriplet:
         assert "## TODOs" in note_text
         assert "## Related" in note_text
 
-    def test_cursor_contains_metadata(
+    def test_agent_contains_metadata(
         self,
         tmp_dest_dir,
         sample_note_content,
@@ -86,10 +86,10 @@ class TestWriteFullTriplet:
         write(sample_note_content, sample_github_ref, str(tmp_dest_dir))
 
         pi = PathInfo.from_github(sample_github_ref, str(tmp_dest_dir))
-        cursor_text = Path(pi.cursor_path).read_text(encoding="utf-8")
-        assert "## Analysis" in cursor_text
-        assert "## TODOs" in cursor_text
-        assert "**Type:** pull_request" in cursor_text
+        agent_text = Path(pi.agent_path).read_text(encoding="utf-8")
+        assert "## Analysis" in agent_text
+        assert "## TODOs" in agent_text
+        assert "**Type:** pull_request" in agent_text
 
     def test_creates_dest_dir_if_missing(self, tmp_path, sample_note_content, sample_github_ref):
         dest = str(tmp_path / "nonexistent" / "dir")
@@ -111,33 +111,33 @@ class TestWriteKinds:
         pi = PathInfo.from_github(sample_github_ref, str(tmp_dest_dir))
         assert Path(pi.md_path).is_file()
         assert not Path(pi.note_path).is_file()
-        assert not Path(pi.cursor_path).is_file()
+        assert not Path(pi.agent_path).is_file()
 
     def test_note_and_analysis(self, tmp_dest_dir, sample_note_content, sample_github_ref):
         write(
             sample_note_content,
             sample_github_ref,
             str(tmp_dest_dir),
-            kinds=("note", "cursor"),
+            kinds=("note", "agent"),
         )
 
         pi = PathInfo.from_github(sample_github_ref, str(tmp_dest_dir))
         assert not Path(pi.md_path).is_file()
         assert Path(pi.note_path).is_file()
-        assert Path(pi.cursor_path).is_file()
+        assert Path(pi.agent_path).is_file()
 
     def test_single_analysis(self, tmp_dest_dir, sample_note_content, sample_github_ref):
         write(
             sample_note_content,
             sample_github_ref,
             str(tmp_dest_dir),
-            kinds=("cursor",),
+            kinds=("agent",),
         )
 
         pi = PathInfo.from_github(sample_github_ref, str(tmp_dest_dir))
         assert not Path(pi.md_path).is_file()
         assert not Path(pi.note_path).is_file()
-        assert Path(pi.cursor_path).is_file()
+        assert Path(pi.agent_path).is_file()
 
 
 class TestWriteSkipIfExists:
@@ -149,13 +149,13 @@ class TestWriteSkipIfExists:
 
         assert Path(pi.note_path).read_text(encoding="utf-8") == "USER NOTES"
 
-    def test_cursor_not_overwritten(self, tmp_dest_dir, sample_note_content, sample_github_ref):
+    def test_agent_not_overwritten(self, tmp_dest_dir, sample_note_content, sample_github_ref):
         pi = PathInfo.from_github(sample_github_ref, str(tmp_dest_dir))
-        Path(pi.cursor_path).write_text("CURSOR ANALYSIS", encoding="utf-8")
+        Path(pi.agent_path).write_text("AGENT ANALYSIS", encoding="utf-8")
 
         write(sample_note_content, sample_github_ref, str(tmp_dest_dir))
 
-        assert Path(pi.cursor_path).read_text(encoding="utf-8") == "CURSOR ANALYSIS"
+        assert Path(pi.agent_path).read_text(encoding="utf-8") == "AGENT ANALYSIS"
 
     def test_md_always_overwritten(self, tmp_dest_dir, sample_note_content, sample_github_ref):
         pi = PathInfo.from_github(sample_github_ref, str(tmp_dest_dir))
@@ -182,23 +182,23 @@ class TestWriteReplace:
 
         assert Path(pi.note_path).read_text(encoding="utf-8") != "USER NOTES"
 
-    def test_cursor_overwritten_with_replace(
+    def test_agent_overwritten_with_replace(
         self,
         tmp_dest_dir,
         sample_note_content,
         sample_github_ref,
     ):
         pi = PathInfo.from_github(sample_github_ref, str(tmp_dest_dir))
-        Path(pi.cursor_path).write_text("CURSOR ANALYSIS", encoding="utf-8")
+        Path(pi.agent_path).write_text("AGENT ANALYSIS", encoding="utf-8")
 
         write(sample_note_content, sample_github_ref, str(tmp_dest_dir), replace=True)
 
-        assert Path(pi.cursor_path).read_text(encoding="utf-8") != "CURSOR ANALYSIS"
+        assert Path(pi.agent_path).read_text(encoding="utf-8") != "AGENT ANALYSIS"
 
     def test_replace_with_kinds(self, tmp_dest_dir, sample_note_content, sample_github_ref):
         """Only the selected kinds are written, even with replace=True."""
         pi = PathInfo.from_github(sample_github_ref, str(tmp_dest_dir))
-        Path(pi.cursor_path).write_text("CURSOR ANALYSIS", encoding="utf-8")
+        Path(pi.agent_path).write_text("AGENT ANALYSIS", encoding="utf-8")
 
         write(
             sample_note_content,
@@ -208,7 +208,7 @@ class TestWriteReplace:
             replace=True,
         )
 
-        assert Path(pi.cursor_path).read_text(encoding="utf-8") == "CURSOR ANALYSIS"
+        assert Path(pi.agent_path).read_text(encoding="utf-8") == "AGENT ANALYSIS"
 
     def test_replace_false_default(self, tmp_dest_dir, sample_note_content, sample_github_ref):
         """Sanity check: default replace=False preserves existing files."""
@@ -227,7 +227,7 @@ class TestWriteJira:
         pi = PathInfo.from_jira(sample_jira_ref, str(tmp_dest_dir))
         assert Path(pi.md_path).is_file()
         assert Path(pi.note_path).is_file()
-        assert Path(pi.cursor_path).is_file()
+        assert Path(pi.agent_path).is_file()
 
     def test_jira_md_contains_content(self, tmp_dest_dir, sample_jira_content, sample_jira_ref):
         write(sample_jira_content, sample_jira_ref, str(tmp_dest_dir))
@@ -242,7 +242,7 @@ class TestWriteJira:
 
         pi = PathInfo.from_jira(sample_jira_ref, str(tmp_dest_dir))
         md_text = Path(pi.md_path).read_text(encoding="utf-8")
-        assert "[[test.atlassian.net/RUN-3555/cursor]]" in md_text
+        assert "[[test.atlassian.net/RUN-3555/agent]]" in md_text
         assert "[[test.atlassian.net/RUN-3555/note]]" in md_text
 
     def test_jira_md_no_github_section_by_default(
@@ -300,7 +300,7 @@ class TestWriteJira:
         footer_start = md_text.index("---")
         footer = md_text[footer_start:]
         assert "github.com" not in footer
-        assert "test.atlassian.net/RUN-3555/cursor" in footer
+        assert "test.atlassian.net/RUN-3555/agent" in footer
         assert "test.atlassian.net/RUN-3555/note" in footer
 
 
@@ -317,7 +317,7 @@ class TestRender:
         sample_github_ref,
     ):
         result = render(sample_note_content, sample_github_ref, str(tmp_dest_dir))
-        assert set(result.keys()) == {"md", "note", "cursor"}
+        assert set(result.keys()) == {"md", "note", "agent"}
 
     def test_returns_rendered_note_instances(
         self,
@@ -341,9 +341,9 @@ class TestRender:
             sample_note_content,
             sample_github_ref,
             str(tmp_dest_dir),
-            kinds=("md", "cursor"),
+            kinds=("md", "agent"),
         )
-        assert set(result.keys()) == {"md", "cursor"}
+        assert set(result.keys()) == {"md", "agent"}
 
     def test_single_kind(
         self,
@@ -371,7 +371,7 @@ class TestRender:
         pi = PathInfo.from_github(sample_github_ref, str(tmp_dest_dir))
         assert not Path(pi.md_path).is_file()
         assert not Path(pi.note_path).is_file()
-        assert not Path(pi.cursor_path).is_file()
+        assert not Path(pi.agent_path).is_file()
 
     def test_md_content_matches_written(
         self,
@@ -396,7 +396,7 @@ class TestRender:
         pi = PathInfo.from_github(sample_github_ref, str(tmp_dest_dir))
         assert result["md"].path == pi.md_path
         assert result["note"].path == pi.note_path
-        assert result["cursor"].path == pi.cursor_path
+        assert result["agent"].path == pi.agent_path
 
 
 class TestRenderedNoteModel:
@@ -466,12 +466,12 @@ class TestHashRefExpansion:
         assert "[[github.com/org/repo/issues/42]]" in note
         assert "[[github.com/org/repo/issues/10]]" not in note
 
-    def test_cursor_title_expanded_body_unchanged(self, tmp_dest_dir):
+    def test_agent_title_expanded_body_unchanged(self, tmp_dest_dir):
         write(_HASHREF_CONTENT, _HASHREF_REF, str(tmp_dest_dir))
         pi = PathInfo.from_github(_HASHREF_REF, str(tmp_dest_dir))
-        cursor = Path(pi.cursor_path).read_text(encoding="utf-8")
-        assert "[[github.com/org/repo/issues/42]]" in cursor
-        assert "[[github.com/org/repo/issues/10]]" not in cursor
+        agent = Path(pi.agent_path).read_text(encoding="utf-8")
+        assert "[[github.com/org/repo/issues/42]]" in agent
+        assert "[[github.com/org/repo/issues/10]]" not in agent
 
     def test_jira_no_expansion(self, tmp_dest_dir, sample_jira_content):
         jira_content = sample_jira_content.model_copy(

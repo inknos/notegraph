@@ -1,20 +1,20 @@
 ---
-description: Track actionable improvements and TODOs discovered during Cursor sessions
+description: Track actionable improvements and TODOs discovered during agent sessions
 alwaysApply: true
 ---
 
-# Cursor TODO Tracker
+# Agent TODO Tracker
 
-The agent maintains a running list of actionable improvements, bugs, and follow-ups on the `cursortodo` Logseq page, using the `user-mcp-logseq` MCP server.
+The agent maintains a running list of actionable improvements, bugs, and follow-ups on the `agenttodo` Logseq page, using the `user-mcp-logseq` MCP server.
 
 ## How to read and write
 
 | Action | MCP tool | Notes |
 |--------|----------|-------|
-| Read the page | `get_page_content` with `page_name: "cursortodo"`, `format: "json"` | Returns blocks with UUIDs for editing |
-| Append new items | `update_page` with `page_name: "cursortodo"`, `mode: "append"` | Adds blocks after existing content |
+| Read the page | `get_page_content` with `page_name: "agenttodo"`, `format: "json"` | Returns blocks with UUIDs for editing |
+| Append new items | `update_page` with `page_name: "agenttodo"`, `mode: "append"` | Adds blocks after existing content |
 | Mark item done | `update_block` with the block's UUID | Wrap text in `~~strikethrough~~` and append `(done YYYY-MM-DD)` |
-| Create page | `create_page` with `title: "cursortodo"` | Only if the page doesn't exist yet |
+| Create page | `create_page` with `title: "agenttodo"` | Only if the page doesn't exist yet |
 
 Do NOT hardcode file paths. Always go through the MCP.
 
@@ -22,22 +22,23 @@ Do NOT hardcode file paths. Always go through the MCP.
 
 1. **After a review or investigation.** If you found bugs, improvement ideas, or follow-up actions in a PR/issue, add them here.
 2. **After completing a TODO.** Mark it done with `~~strikethrough~~` via `update_block` — don't delete it.
-3. **Before starting work.** Read `cursortodo` to check for outstanding items related to the current repo or PR.
+3. **Before starting work.** Read `agenttodo` to check for outstanding items related to the current repo or PR.
 
 ## Entry format
 
-Items are grouped under a repo heading. Each item links to the PR/issue and the cursor notes file.
+Items are grouped under a repo heading. Each item links to the PR/issue and the agent notes file.
 
 ```markdown
 - **org/repo**
-  - [[github.com/org/repo/pull/123]] brief description of improvement — details in [[github.com/org/repo/pull/123/cursor]]
+  - [[github.com/org/repo/pull/123]] brief description of improvement — details in [[github.com/org/repo/pull/123/agent]]
   - ~~[[github.com/org/repo/issue/456]] fixed: description~~ (done 2026-04-09)
 ```
 
 ## Rules
 
-1. **Always link.** Every item must include a `[[wikilink]]` to the PR/issue and optionally to the cursor notes file.
+1. **Always link.** Every item must include a `[[wikilink]]` to the PR/issue and optionally to the agent notes file.
 2. **Group by repo.** Use `- **org/repo**` as a top-level block. Add items as children (use `insert_nested_block` with the repo block's UUID). If the repo heading already exists, add under it.
 3. **Be specific.** State what needs to happen, not just what was observed. "Refactor X to handle Y" is better than "X has a problem".
 4. **Mark done, don't delete.** Use `update_block` to wrap completed items in `~~strikethrough~~` and append `(done YYYY-MM-DD)`.
 5. **Read before writing.** Always read the page first (with `format: "json"`) to get block UUIDs and avoid duplicates.
+6. **No bare hashtags.** Never use `#word` in Logseq content — Logseq interprets `#foo` as a page reference (equivalent to `[[foo]]`). If you need a literal hash (e.g. issue numbers), escape it or rephrase.

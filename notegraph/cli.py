@@ -26,7 +26,7 @@ Global options (before the subcommand):
     --json                Output JSON instead of human-readable text.
     --summary             Include the summary (md) file.
     --note                Include the user-notes file.
-    --analysis            Include the agent-analysis (cursor) file.
+    --analysis            Include the agent-analysis file.
     --no-summary          Exclude the summary file.
     --no-note             Exclude the user-notes file.
     --no-analysis         Exclude the agent-analysis file.
@@ -291,7 +291,7 @@ def launcher(
 _KIND_MAP: dict[str, FileKind] = {
     "summary": "md",
     "note": "note",
-    "analysis": "cursor",
+    "analysis": "agent",
 }
 
 
@@ -317,7 +317,7 @@ def _resolve_kinds(
     Args:
         summary: Include the summary (md) file.
         note: Include the user-notes file.
-        analysis: Include the agent-analysis (cursor) file.
+        analysis: Include the agent-analysis file.
 
     Returns:
         Tuple of ``FileKind`` values to process.
@@ -378,7 +378,7 @@ class FetchArgs(BaseModel):
     ] = False
     analysis: Annotated[
         bool,
-        Parameter(help="Include the agent-analysis (cursor) file."),
+        Parameter(help="Include the agent-analysis file."),
     ] = False
     dest_dir: Annotated[
         str | None,

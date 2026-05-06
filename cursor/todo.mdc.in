@@ -22,7 +22,7 @@ Items are Logseq wikilinks: `- [[github.com/org/repo/pull/123]] title (**status*
 3. **Get context** on the chosen item:
    - GitHub URL → run `notegraph fetch --source github --check --json <url>`, then read the `.md` and `-note.md` files. Create missing files if needed (run `notegraph fetch --source github <url>`).
    - Jira key → run `notegraph fetch --source jira --check --json <KEY>`, then read the `.md` and `-note.md` files. Create missing files if needed (run `notegraph fetch --source jira <KEY>`).
-4. **Write analysis** to the `-cursor.md` file (see `gh-notes.mdc` for the full protocol).
+4. **Write analysis** to the `-agent.md` file (see the GitHub Issue/PR Notes rule for the full protocol).
 5. **Proceed** with the work — code changes, PR comments, review, etc.
 
 ## Triaging Incoming

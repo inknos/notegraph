@@ -13,7 +13,7 @@ Any GitHub URL matching `https://github.com/{org}/{repo}/{issues|pull}/{number}`
 
 ## Workflow
 
-1. **Locate files.** Run `notegraph fetch --source github --check --json <url>` to get a JSON object with the paths and existence status of all three files (`md`, `note`, `cursor`).
+1. **Locate files.** Run `notegraph fetch --source github --check --json <url>` to get a JSON object with the paths and existence status of all three files (`md`, `note`, `agent`).
 
 2. **Create if missing.** If any file has `"exists": false`, run `notegraph fetch --source github <url>` to fetch from GitHub and create the missing files.
 
@@ -21,7 +21,7 @@ Any GitHub URL matching `https://github.com/{org}/{repo}/{issues|pull}/{number}`
 
 4. **Read the user's notes (read-only).** Read the `note` file (`N-note.md`). These are the user's personal notes, TODOs, and related links. **Never modify this file** -- it belongs to the user.
 
-5. **Write your analysis to the cursor file.** The `cursor` file is your workspace. Write a markdown file containing your analysis:
+5. **Write your analysis to the agent file.** The `agent` file is your workspace. Write a markdown file containing your analysis:
    - Summary of the issue/PR and key discussion points
    - Actionable TODOs and next steps
    - Technical notes, code pointers, and suggestions
@@ -38,10 +38,10 @@ Any GitHub URL matching `https://github.com/{org}/{repo}/{issues|pull}/{number}`
 | (none) | Fetch from GitHub and create missing files |
 | `--check` | Show file paths and existence (table format) |
 | `--check --json` | Show file paths and existence (JSON format) |
-| `--replace` | Overwrite existing note/cursor files |
+| `--replace` | Overwrite existing note/agent files |
 | `--summary` | Only create the summary (md) file |
 | `--note` | Only create the user-notes file |
-| `--analysis` | Only create the agent-analysis (cursor) file |
+| `--analysis` | Only create the agent-analysis file |
 | `--dest-dir DIR` | Override output directory |
 
 The `--check --json` output looks like:
@@ -50,7 +50,7 @@ The `--check --json` output looks like:
 {
   "md":     { "path": "/path/to/N.md",          "exists": true  },
   "note":   { "path": "/path/to/N-note.md",     "exists": true  },
-  "cursor": { "path": "/path/to/N-cursor.md", "exists": false }
+  "agent":  { "path": "/path/to/N-agent.md",  "exists": false }
 }
 ```
 
@@ -60,4 +60,4 @@ The `--check --json` output looks like:
 |------|-------|---------|
 | `N.md` | Tool | Auto-populated summary, description, and raw comments from GitHub |
 | `N-note.md` | User | User's personal working notes -- **read-only for the agent** |
-| `N-cursor.md` | Agent | Agent's analysis, TODOs, and notes -- **agent writes here** |
+| `N-agent.md` | Agent | Agent's analysis, TODOs, and notes -- **agent writes here** |

@@ -59,7 +59,7 @@ class TestFetchGitHubCheck:
         assert "Exists" in stdout
         assert "md" in stdout
         assert "note" in stdout
-        assert "cursor" in stdout
+        assert "agent" in stdout
 
     def test_check_issue_url(self, tmp_path, sample_config_toml):
         url = "https://github.com/org/repo/issues/42"
@@ -104,7 +104,7 @@ class TestFetchGitHubCheck:
         pi = PathInfo.from_github(ref, cfg_graph_dir)
         assert pi.md_path in stdout
         assert pi.note_path in stdout
-        assert pi.cursor_path in stdout
+        assert pi.agent_path in stdout
 
     def test_check_shows_existence_markers(self, tmp_path, sample_config_toml):
         url = "https://github.com/o/r/pull/1"
@@ -254,10 +254,10 @@ class TestFetchGitHubWrite:
 
         md = Path(graph_dir) / "github.com___o___r___pull___1.md"
         note = Path(graph_dir) / "github.com___o___r___pull___1___note.md"
-        cursor = Path(graph_dir) / "github.com___o___r___pull___1___cursor.md"
+        agent = Path(graph_dir) / "github.com___o___r___pull___1___agent.md"
         assert md.is_file()
         assert note.is_file()
-        assert cursor.is_file()
+        assert agent.is_file()
 
         md_text = md.read_text(encoding="utf-8")
         assert "Test PR" in md_text
@@ -286,7 +286,7 @@ class TestFetchKindFlags:
         assert exit_code == 0
         assert (Path(graph_dir) / "github.com___o___r___pull___1.md").is_file()
         assert not (Path(graph_dir) / "github.com___o___r___pull___1___note.md").is_file()
-        assert not (Path(graph_dir) / "github.com___o___r___pull___1___cursor.md").is_file()
+        assert not (Path(graph_dir) / "github.com___o___r___pull___1___agent.md").is_file()
 
     @patch("notegraph.cli.github_api.fetch", return_value=_MOCK_GH_CONTENT)
     def test_note_and_analysis(self, mock_fetch, sample_config_toml, tmp_path):
@@ -305,7 +305,7 @@ class TestFetchKindFlags:
         assert exit_code == 0
         assert not (Path(graph_dir) / "github.com___o___r___pull___1.md").is_file()
         assert (Path(graph_dir) / "github.com___o___r___pull___1___note.md").is_file()
-        assert (Path(graph_dir) / "github.com___o___r___pull___1___cursor.md").is_file()
+        assert (Path(graph_dir) / "github.com___o___r___pull___1___agent.md").is_file()
 
     @patch("notegraph.cli.github_api.fetch", return_value=_MOCK_GH_CONTENT)
     def test_no_flags_generates_all(self, mock_fetch, sample_config_toml, tmp_path):
@@ -322,7 +322,7 @@ class TestFetchKindFlags:
         assert exit_code == 0
         assert (Path(graph_dir) / "github.com___o___r___pull___1.md").is_file()
         assert (Path(graph_dir) / "github.com___o___r___pull___1___note.md").is_file()
-        assert (Path(graph_dir) / "github.com___o___r___pull___1___cursor.md").is_file()
+        assert (Path(graph_dir) / "github.com___o___r___pull___1___agent.md").is_file()
 
 
 # ---------------------------------------------------------------------------
@@ -373,7 +373,7 @@ class TestFetchReplaceFlag:
 
     @patch("notegraph.cli.github_api.fetch", return_value=_MOCK_GH_CONTENT)
     def test_replace_summary_only(self, mock_fetch, sample_config_toml, tmp_path):
-        """--replace --summary: note/cursor files are untouched."""
+        """--replace --summary: note/agent files are untouched."""
         graph_dir = _extract_graph_dir(sample_config_toml)
         note_path = Path(graph_dir) / "github.com___o___r___pull___1___note.md"
         note_path.parent.mkdir(parents=True, exist_ok=True)
@@ -416,7 +416,7 @@ class TestFetchJsonFlag:
         data = json.loads(stdout)
         assert "md" in data
         assert "note" in data
-        assert "cursor" in data
+        assert "agent" in data
         assert "path" in data["md"]
         assert "exists" in data["md"]
 
@@ -453,7 +453,7 @@ class TestFetchJsonFlag:
         data = json.loads(stdout)
         assert "md" in data
         assert "note" in data
-        assert "cursor" in data
+        assert "agent" in data
         assert "path" in data["md"]
         assert "content" in data["md"]
         assert "Test PR" in data["md"]["content"]
@@ -478,7 +478,7 @@ class TestFetchJsonFlag:
         data = json.loads(stdout)
         assert "md" in data
         assert "note" not in data
-        assert "cursor" not in data
+        assert "agent" not in data
 
 
 # ---------------------------------------------------------------------------
@@ -533,10 +533,10 @@ class TestFetchJiraWrite:
 
         md = Path(graph_dir) / "test.atlassian.net___RUN-100.md"
         note = Path(graph_dir) / "test.atlassian.net___RUN-100___note.md"
-        cursor = Path(graph_dir) / "test.atlassian.net___RUN-100___cursor.md"
+        agent = Path(graph_dir) / "test.atlassian.net___RUN-100___agent.md"
         assert md.is_file()
         assert note.is_file()
-        assert cursor.is_file()
+        assert agent.is_file()
         assert "Implement retry logic" in md.read_text(encoding="utf-8")
 
     @patch("notegraph.cli.github_api.fetch", return_value=_MOCK_GH_CONTENT)

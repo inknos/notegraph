@@ -12,7 +12,7 @@ from pydantic import BaseModel, model_validator
 # Type aliases
 # ---------------------------------------------------------------------------
 Format = Literal["logseq"]
-FileKind = Literal["md", "note", "cursor"]
+FileKind = Literal["md", "note", "agent"]
 
 # ---------------------------------------------------------------------------
 # Source refs — parse CLI input into structured data
@@ -151,7 +151,7 @@ class FileStatus(BaseModel):
 
 
 class NoteTriplet(BaseModel):
-    """The three-file note set (md, note, cursor) with existence info.
+    """The three-file note set (md, note, agent) with existence info.
 
     ``model_dump()`` produces JSON compatible with the existing bash
     ``--check`` output.
@@ -159,7 +159,7 @@ class NoteTriplet(BaseModel):
 
     md: FileStatus
     note: FileStatus
-    cursor: FileStatus
+    agent: FileStatus
 
     def format_table(self) -> str:
         """Render a human-readable table of the triplet.
@@ -170,7 +170,7 @@ class NoteTriplet(BaseModel):
         rows = [
             ("md", self.md),
             ("note", self.note),
-            ("cursor", self.cursor),
+            ("agent", self.agent),
         ]
         path_width = max(len(r[1].path) for r in rows)
         lines = [f"  {'Kind':<8} {'Exists':<8} {'Path'}"]
@@ -220,9 +220,9 @@ class PathInfo(BaseModel):
         return f"{self.file_prefix}{self.file_sep}note.md"
 
     @property
-    def cursor_path(self) -> str:
-        """Path to the agent cursor file."""
-        return f"{self.file_prefix}{self.file_sep}cursor.md"
+    def agent_path(self) -> str:
+        """Path to the agent analysis file."""
+        return f"{self.file_prefix}{self.file_sep}agent.md"
 
     @property
     def wikilink(self) -> str:
@@ -235,20 +235,20 @@ class PathInfo(BaseModel):
         return f"{self.wikilink_prefix}{self.wikilink_sep}note"
 
     @property
-    def wikilink_cursor(self) -> str:
-        """Wikilink to the cursor page."""
-        return f"{self.wikilink_prefix}{self.wikilink_sep}cursor"
+    def wikilink_agent(self) -> str:
+        """Wikilink to the agent page."""
+        return f"{self.wikilink_prefix}{self.wikilink_sep}agent"
 
     def path_for(self, kind: FileKind) -> str:
         """Return the file path for the given *kind*."""
-        return {"md": self.md_path, "note": self.note_path, "cursor": self.cursor_path}[kind]
+        return {"md": self.md_path, "note": self.note_path, "agent": self.agent_path}[kind]
 
     def to_triplet(self) -> NoteTriplet:
         """Check file existence and return a ``NoteTriplet``."""
         return NoteTriplet(
             md=FileStatus(path=self.md_path, exists=Path(self.md_path).is_file()),
             note=FileStatus(path=self.note_path, exists=Path(self.note_path).is_file()),
-            cursor=FileStatus(path=self.cursor_path, exists=Path(self.cursor_path).is_file()),
+            agent=FileStatus(path=self.agent_path, exists=Path(self.agent_path).is_file()),
         )
 
     # -- factory classmethods -----------------------------------------------
@@ -416,9 +416,9 @@ class NoteTags(BaseModel):
 # ---------------------------------------------------------------------------
 
 _WIKILINKS_FOR_KIND: dict[FileKind, tuple[str, str]] = {
-    "md": ("cursor", "note"),
-    "note": ("cursor", ""),
-    "cursor": ("", "note"),
+    "md": ("agent", "note"),
+    "note": ("agent", ""),
+    "agent": ("", "note"),
 }
 
 
@@ -437,25 +437,25 @@ class NoteHeader(BaseModel):
         """Render the header as a string for the given file kind.
 
         Args:
-            kind: Which file in the triplet (md, note, cursor).
+            kind: Which file in the triplet (md, note, agent).
 
         Returns:
             Rendered header string.
         """
         lines = [f"# {self.title}", "", self.url, ""]
-        if kind in ("md", "cursor"):
+        if kind in ("md", "agent"):
             meta_parts = []
-            if kind == "cursor":
+            if kind == "agent":
                 meta_parts.append(f"**Type:** {self.note_type}")
             meta_parts.extend(
                 [
                     f"**Status:** {self.status}",
-                    f"**Author:** {self.author}" if kind == "cursor" else "",
-                    f"**Created:** {self.created}" if kind == "cursor" else "",
+                    f"**Author:** {self.author}" if kind == "agent" else "",
+                    f"**Created:** {self.created}" if kind == "agent" else "",
                 ]
             )
             meta_parts = [p for p in meta_parts if p]
-            if kind == "cursor":
+            if kind == "agent":
                 lines.append(" | ".join(meta_parts))
                 lines.append("")
         return "\n".join(lines)
@@ -472,7 +472,7 @@ class NoteHeader(BaseModel):
         Args:
             content: Fetched note content.
             paths: Computed path info.
-            kind: Which file in the triplet.
+            kind: Which file in the triplet (md, note, agent).
 
         Returns:
             Populated header.
@@ -518,7 +518,7 @@ class NoteBody(BaseModel):
         """Render the body as a string for the given file kind.
 
         Args:
-            kind: Which file in the triplet (md, note, cursor).
+            kind: Which file in the triplet (md, note, agent).
 
         Returns:
             Rendered body string.
@@ -527,7 +527,7 @@ class NoteBody(BaseModel):
             return self._to_md()
         if kind == "note":
             return self._to_note()
-        return self._to_cursor()
+        return self._to_agent()
 
     def _to_md(self) -> str:
         parts = ["## Description", "", self.description, "", "## Comments", ""]
@@ -546,7 +546,7 @@ class NoteBody(BaseModel):
             parts.extend(["", section.content, ""] if section.content else [""])
         return "\n".join(parts)
 
-    def _to_cursor(self) -> str:
+    def _to_agent(self) -> str:
         parts: list[str] = []
         for section in self.sections:
             parts.append(f"## {section.heading}")
@@ -559,7 +559,7 @@ class NoteBody(BaseModel):
 
         Args:
             content: Fetched note content.
-            kind: Which file in the triplet.
+            kind: Which file in the triplet (md, note, agent).
 
         Returns:
             Populated body.

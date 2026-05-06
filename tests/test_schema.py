@@ -123,20 +123,20 @@ class TestNoteTriplet:
         triplet = NoteTriplet(
             md=FileStatus(path="/p/foo.md", exists=True),
             note=FileStatus(path="/p/foo___note.md", exists=False),
-            cursor=FileStatus(path="/p/foo___cursor.md", exists=True),
+            agent=FileStatus(path="/p/foo___agent.md", exists=True),
         )
         dumped = triplet.model_dump()
         assert dumped == {
             "md": {"path": "/p/foo.md", "exists": True},
             "note": {"path": "/p/foo___note.md", "exists": False},
-            "cursor": {"path": "/p/foo___cursor.md", "exists": True},
+            "agent": {"path": "/p/foo___agent.md", "exists": True},
         }
 
     def test_model_dump_json_is_valid(self):
         triplet = NoteTriplet(
             md=FileStatus(path="/a.md", exists=False),
             note=FileStatus(path="/a___note.md", exists=False),
-            cursor=FileStatus(path="/a___cursor.md", exists=False),
+            agent=FileStatus(path="/a___agent.md", exists=False),
         )
         parsed = json.loads(triplet.model_dump_json())
         assert parsed["md"]["exists"] is False
@@ -145,7 +145,7 @@ class TestNoteTriplet:
         triplet = NoteTriplet(
             md=FileStatus(path="/p/foo.md", exists=True),
             note=FileStatus(path="/p/foo___note.md", exists=False),
-            cursor=FileStatus(path="/p/foo___cursor.md", exists=True),
+            agent=FileStatus(path="/p/foo___agent.md", exists=True),
         )
         table = triplet.format_table()
         assert "Kind" in table
@@ -153,13 +153,13 @@ class TestNoteTriplet:
         assert "Path" in table
         assert "md" in table
         assert "note" in table
-        assert "cursor" in table
+        assert "agent" in table
 
     def test_format_table_check_mark_for_exists(self):
         triplet = NoteTriplet(
             md=FileStatus(path="/p/foo.md", exists=True),
             note=FileStatus(path="/p/foo___note.md", exists=False),
-            cursor=FileStatus(path="/p/foo___cursor.md", exists=False),
+            agent=FileStatus(path="/p/foo___agent.md", exists=False),
         )
         table = triplet.format_table()
         lines = table.strip().splitlines()
@@ -172,12 +172,12 @@ class TestNoteTriplet:
         triplet = NoteTriplet(
             md=FileStatus(path="/some/dir/file.md", exists=False),
             note=FileStatus(path="/some/dir/file___note.md", exists=False),
-            cursor=FileStatus(path="/some/dir/file___cursor.md", exists=False),
+            agent=FileStatus(path="/some/dir/file___agent.md", exists=False),
         )
         table = triplet.format_table()
         assert "/some/dir/file.md" in table
         assert "/some/dir/file___note.md" in table
-        assert "/some/dir/file___cursor.md" in table
+        assert "/some/dir/file___agent.md" in table
 
 
 # ===================================================================
@@ -201,21 +201,21 @@ class TestPathInfoFromGithub:
         pi = PathInfo.from_github(sample_github_ref, "/d")
         assert pi.note_path == "/d/github.com___containers___podman___pull___24126___note.md"
 
-    def test_derived_cursor_path(self, sample_github_ref):
+    def test_derived_agent_path(self, sample_github_ref):
         pi = PathInfo.from_github(sample_github_ref, "/d")
-        assert pi.cursor_path == "/d/github.com___containers___podman___pull___24126___cursor.md"
+        assert pi.agent_path == "/d/github.com___containers___podman___pull___24126___agent.md"
 
     def test_wikilinks(self, sample_github_ref):
         pi = PathInfo.from_github(sample_github_ref, "/d")
         assert pi.wikilink == "github.com/containers/podman/pull/24126"
         assert pi.wikilink_note == "github.com/containers/podman/pull/24126/note"
-        assert pi.wikilink_cursor == "github.com/containers/podman/pull/24126/cursor"
+        assert pi.wikilink_agent == "github.com/containers/podman/pull/24126/agent"
 
     def test_path_for(self, sample_github_ref):
         pi = PathInfo.from_github(sample_github_ref, "/d")
         assert pi.path_for("md") == pi.md_path
         assert pi.path_for("note") == pi.note_path
-        assert pi.path_for("cursor") == pi.cursor_path
+        assert pi.path_for("agent") == pi.agent_path
 
 
 # ===================================================================
@@ -233,7 +233,7 @@ class TestPathInfoFromJira:
         pi = PathInfo.from_jira(sample_jira_ref, "/dest")
         assert pi.wikilink == "test.atlassian.net/RUN-3555"
         assert pi.wikilink_note == "test.atlassian.net/RUN-3555/note"
-        assert pi.wikilink_cursor == "test.atlassian.net/RUN-3555/cursor"
+        assert pi.wikilink_agent == "test.atlassian.net/RUN-3555/agent"
 
     def test_md_path(self, sample_jira_ref):
         pi = PathInfo.from_jira(sample_jira_ref, "/dest")
@@ -243,9 +243,9 @@ class TestPathInfoFromJira:
         pi = PathInfo.from_jira(sample_jira_ref, "/dest")
         assert pi.note_path == "/dest/test.atlassian.net___RUN-3555___note.md"
 
-    def test_cursor_path(self, sample_jira_ref):
+    def test_agent_path(self, sample_jira_ref):
         pi = PathInfo.from_jira(sample_jira_ref, "/dest")
-        assert pi.cursor_path == "/dest/test.atlassian.net___RUN-3555___cursor.md"
+        assert pi.agent_path == "/dest/test.atlassian.net___RUN-3555___agent.md"
 
 
 # ===================================================================
@@ -274,17 +274,17 @@ class TestPathInfoToTriplet:
         triplet = pi.to_triplet()
         assert triplet.md.exists is False
         assert triplet.note.exists is False
-        assert triplet.cursor.exists is False
+        assert triplet.agent.exists is False
 
     def test_all_files_exist(self, tmp_dest_dir, sample_github_ref):
         pi = PathInfo.from_github(sample_github_ref, str(tmp_dest_dir))
-        for path in (pi.md_path, pi.note_path, pi.cursor_path):
+        for path in (pi.md_path, pi.note_path, pi.agent_path):
             Path(path).write_text("content", encoding="utf-8")
 
         triplet = pi.to_triplet()
         assert triplet.md.exists is True
         assert triplet.note.exists is True
-        assert triplet.cursor.exists is True
+        assert triplet.agent.exists is True
 
     def test_partial_existence(self, tmp_dest_dir, sample_github_ref):
         pi = PathInfo.from_github(sample_github_ref, str(tmp_dest_dir))
@@ -293,14 +293,14 @@ class TestPathInfoToTriplet:
         triplet = pi.to_triplet()
         assert triplet.md.exists is True
         assert triplet.note.exists is False
-        assert triplet.cursor.exists is False
+        assert triplet.agent.exists is False
 
     def test_paths_in_triplet_match(self, tmp_dest_dir, sample_github_ref):
         pi = PathInfo.from_github(sample_github_ref, str(tmp_dest_dir))
         triplet = pi.to_triplet()
         assert triplet.md.path == pi.md_path
         assert triplet.note.path == pi.note_path
-        assert triplet.cursor.path == pi.cursor_path
+        assert triplet.agent.path == pi.agent_path
 
 
 # ===================================================================
@@ -355,25 +355,25 @@ class TestNoteHeader:
         paths = PathInfo.from_github(sample_github_ref, "/d")
         header = NoteHeader.from_content(sample_note_content, paths, "md")
         assert header.title == sample_note_content.title
-        assert "cursor" in header.wikilinks[0]
+        assert "agent" in header.wikilinks[0]
         assert "note" in header.wikilinks[1]
 
     def test_from_content_note(self, sample_note_content, sample_github_ref):
         paths = PathInfo.from_github(sample_github_ref, "/d")
         header = NoteHeader.from_content(sample_note_content, paths, "note")
-        assert "cursor" in header.wikilinks[0]
+        assert "agent" in header.wikilinks[0]
         assert header.wikilinks[1] == paths.wikilink
 
-    def test_from_content_cursor(self, sample_note_content, sample_github_ref):
+    def test_from_content_agent(self, sample_note_content, sample_github_ref):
         paths = PathInfo.from_github(sample_github_ref, "/d")
-        header = NoteHeader.from_content(sample_note_content, paths, "cursor")
+        header = NoteHeader.from_content(sample_note_content, paths, "agent")
         assert header.wikilinks[0] == paths.wikilink
         assert "note" in header.wikilinks[1]
 
-    def test_to_string_cursor(self, sample_note_content, sample_github_ref):
+    def test_to_string_agent(self, sample_note_content, sample_github_ref):
         paths = PathInfo.from_github(sample_github_ref, "/d")
-        header = NoteHeader.from_content(sample_note_content, paths, "cursor")
-        rendered = header.to_string("cursor")
+        header = NoteHeader.from_content(sample_note_content, paths, "agent")
+        rendered = header.to_string("agent")
         assert rendered.startswith("# Fix container networking regression")
         assert "**Type:** pull_request" in rendered
         assert "**Status:** open" in rendered
@@ -411,8 +411,8 @@ class TestNoteBody:
         headings = [s.heading for s in body.sections]
         assert headings == ["Notes", "TODOs", "Related"]
 
-    def test_from_content_cursor(self, sample_note_content):
-        body = NoteBody.from_content(sample_note_content, "cursor")
+    def test_from_content_agent(self, sample_note_content):
+        body = NoteBody.from_content(sample_note_content, "agent")
         headings = [s.heading for s in body.sections]
         assert headings == ["Analysis", "TODOs"]
 
@@ -434,9 +434,9 @@ class TestNoteBody:
         assert "## TODOs" in rendered
         assert "## Related" in rendered
 
-    def test_to_string_cursor(self, sample_note_content):
-        body = NoteBody.from_content(sample_note_content, "cursor")
-        rendered = body.to_string("cursor")
+    def test_to_string_agent(self, sample_note_content):
+        body = NoteBody.from_content(sample_note_content, "agent")
+        rendered = body.to_string("agent")
         assert "## Analysis" in rendered
         assert "## TODOs" in rendered
 

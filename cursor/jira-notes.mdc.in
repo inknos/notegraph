@@ -13,7 +13,7 @@ Any Jira URL matching `https://{{JIRA_ENDPOINT}}/browse/<KEY>`, or a bare Jira k
 
 ## Workflow
 
-1. **Locate files.** Run `notegraph fetch --source jira --check --json <KEY>` to get a JSON object with the paths and existence status of the md, note, and cursor files.
+1. **Locate files.** Run `notegraph fetch --source jira --check --json <KEY>` to get a JSON object with the paths and existence status of the md, note, and agent files.
 
 2. **Create if missing.** If any file has `"exists": false`, run `notegraph fetch --source jira <KEY>` to fetch from Jira and create the files. If the issue has a linked GitHub PR (via a Jira custom field), the linked PR's note files are also created automatically.
 
@@ -21,7 +21,7 @@ Any Jira URL matching `https://{{JIRA_ENDPOINT}}/browse/<KEY>`, or a bare Jira k
 
 4. **Read the user's notes (read-only).** Read the `note` file if it exists. These are the user's personal notes, TODOs, and related links. **Never modify this file** -- it belongs to the user.
 
-5. **Write your analysis to the cursor file.** The `cursor` file is your workspace. Write a markdown file containing your analysis:
+5. **Write your analysis to the agent file.** The `agent` file is your workspace. Write a markdown file containing your analysis:
    - Summary of the issue and key discussion points
    - Actionable TODOs and next steps
    - Technical notes, code pointers, and suggestions
@@ -38,10 +38,10 @@ Any Jira URL matching `https://{{JIRA_ENDPOINT}}/browse/<KEY>`, or a bare Jira k
 | (none) | Fetch from Jira and create missing files |
 | `--check` | Show file paths and existence (table format) |
 | `--check --json` | Show file paths and existence (JSON format) |
-| `--replace` | Overwrite existing note/cursor files |
+| `--replace` | Overwrite existing note/agent files |
 | `--summary` | Only create the summary (md) file |
 | `--note` | Only create the user-notes file |
-| `--analysis` | Only create the agent-analysis (cursor) file |
+| `--analysis` | Only create the agent-analysis file |
 | `--dest-dir DIR` | Override output directory |
 
 The `--check --json` output looks like:
@@ -50,7 +50,7 @@ The `--check --json` output looks like:
 {
   "md":     { "path": "/path/to/KEY.md",          "exists": true  },
   "note":   { "path": "/path/to/KEY-note.md",     "exists": true  },
-  "cursor": { "path": "/path/to/KEY-cursor.md", "exists": false }
+  "agent":  { "path": "/path/to/KEY-agent.md",  "exists": false }
 }
 ```
 
@@ -60,4 +60,4 @@ The `--check --json` output looks like:
 |------|-------|---------|
 | `KEY.md` | Tool | Auto-populated summary, description, and comments |
 | `KEY___note.md` | User | User's personal working notes -- **read-only for the agent** |
-| `KEY___cursor.md` | Agent | Agent's analysis, TODOs, and notes -- **agent writes here** |
+| `KEY___agent.md` | Agent | Agent's analysis, TODOs, and notes -- **agent writes here** |

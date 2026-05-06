@@ -59,7 +59,7 @@ uv run notegraph todo --sync --vikunja
 - **Jira:** JQL from ``--jql``, ``JIRA_JQL``, **`[jira].jql`**, then built-in default `assignee = currentUser() AND resolution = Unresolved ORDER BY updated DESC`.
 - **GitHub:** Non-empty **`[vikunja].github_search_query`** → ``fetch_todo_search``; otherwise **`[github].orgs` / `repos`** → ``fetch_todo``. Needs ``github.token``. Scope is **not** narrowed by ``todo --source`` — Vikunja uses config only.
 - **Vikunja:** **`[vikunja].token`** / `VIKUNJA_TOKEN`, **`[vikunja].base_url`** / `VIKUNJA_BASE_URL` (default `http://127.0.0.1:3456`). Project titles come from **`github_project_template`** / **`jira_project_template`** (defaults `{repo}`, `{project_key}`). Tasks carry a hidden `<!-- notegraph-sync id=github-org-repo-issue-N -->` (or `…-pull-…`, `jira-key`, etc.) marker — **do not remove** if you want stable upserts across runs.
-- **Notes:** ``todo --sync`` refreshes Logseq md/note/cursor files; ``todo --vikunja`` uses **stable Vikunja titles** (issue key / GitHub slug) with summaries in the description — not Logseq bodies.
+- **Notes:** ``todo --sync`` refreshes Logseq md/note/agent files; ``todo --vikunja`` uses **stable Vikunja titles** (issue key / GitHub slug) with summaries in the description — not Logseq bodies.
 
 ## Agent workflow
 

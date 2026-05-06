@@ -28,7 +28,7 @@ from notegraph.schema import (
 
 logger = logging.getLogger(__name__)
 
-_ALL_KINDS: tuple[FileKind, ...] = ("md", "note", "cursor")
+_ALL_KINDS: tuple[FileKind, ...] = ("md", "note", "agent")
 
 
 def check(
@@ -67,7 +67,7 @@ def render(
         kinds: Which file kinds to render.  Defaults to all three.
 
     Returns:
-        Dict mapping file kind (``"md"``, ``"note"``, ``"cursor"``) to a
+        Dict mapping file kind (``"md"``, ``"note"``, ``"agent"``) to a
         ``RenderedNote`` containing the target path and full file content.
     """
     paths = PathInfo.from_ref(ref, dest_dir)
@@ -105,7 +105,7 @@ def write(
     """Render and write note files to disk.
 
     By default the ``md`` (summary) file is **always overwritten**
-    (regenerated from fresh data), while ``note`` and ``cursor`` files
+    (regenerated from fresh data), while ``note`` and ``agent`` files
     are **never overwritten** (write-if-missing semantics).
 
     When *replace* is ``True``, **all** selected files are overwritten
@@ -116,7 +116,7 @@ def write(
         ref: A GitHub or Jira reference.
         dest_dir: Output directory.
         kinds: Which file kinds to write.  Defaults to all three.
-        replace: If ``True``, overwrite existing note/cursor files.
+        replace: If ``True``, overwrite existing note/agent files.
     """
     rendered = render(content, ref, dest_dir, kinds=kinds)
     Path(dest_dir).mkdir(parents=True, exist_ok=True)
