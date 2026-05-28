@@ -706,6 +706,19 @@ def _chain_github(
 _CHECK_SOURCES = ("github", "jira", "vikunja", "llm")
 
 
+def _is_configured(source: str, cfg: AppConfig) -> bool:
+    """Return True if the service has enough config to be worth checking."""
+    if source == "github":
+        return bool(cfg.github.token)
+    if source == "jira":
+        return bool(cfg.jira.endpoint and cfg.jira.email and cfg.jira.token)
+    if source == "vikunja":
+        return bool(cfg.vikunja.token)
+    if source == "llm":
+        return bool(cfg.llm.endpoint)
+    return True
+
+
 @app.command
 def check(
     source: Annotated[
@@ -716,6 +729,7 @@ def check(
     """Verify connectivity and authentication for configured services.
 
     Pings each service's auth endpoint to confirm tokens are valid.
+    Unconfigured services are skipped unless explicitly named via ``--source``.
     Use ``--source`` to check a single service.
     """
     cfg = _get_config()
@@ -723,6 +737,8 @@ def check(
     any_failed = False
 
     for src in sources:
+        if source is None and not _is_configured(src, cfg):
+            continue
         ok, detail = _check_source(src, cfg)
         status = "ok" if ok else "FAIL"
         sys.stdout.write(f"  {src:10s} {status:4s}  {detail}\n")
