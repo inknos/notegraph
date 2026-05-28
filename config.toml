@@ -41,6 +41,6 @@ github_search_query = ""
 # LLM classifier for ambiguous needinfo detection.
 # Talks to any OpenAI-compatible /chat/completions endpoint.
 # Prefer env LLM_TOKEN / LLM_ENDPOINT over storing secrets here.
-endpoint = ""   # e.g. "http://localhost:4000/v1", "https://api.openai.com/v1"
-token = ""      # API key / Bearer token
-model = "gpt-4o-mini"
+endpoint = "http://127.0.0.1:4000/v1"
+token = ""      # no auth needed for local proxy
+model = "claude-sonnet-4-6"

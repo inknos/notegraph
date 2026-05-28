@@ -39,6 +39,15 @@ This means:
 - On subsequent turns, refactor your earlier `Agent session:` bullets from this session to accurately reflect the current state of work. Use `update_block` with the block UUID to edit in place. Consolidate multiple small steps into a single clear bullet when appropriate.
 - Never edit or remove blocks written by the user or by previous sessions.
 
+## End-of-turn checklist
+
+Before finishing every response, verify:
+
+1. Did I change files, run commands that modify state, or update notes this turn?
+2. If yes, did I update today's journal page?
+
+If the answer to (1) is yes and (2) is no, update the journal NOW before ending your turn. This check is mandatory and must not be skipped.
+
 ## How to read and write
 
 | Action | MCP tool | Notes |
@@ -128,7 +137,7 @@ The `--sync` flag writes `worktodo.md` and fetches note triplets for each item. 
 
 # GitHub Issue/PR Notes
 
-When the user references a GitHub issue or PR URL, look up or create structured note files, then use them.
+When the user references a GitHub issue or PR URL, **always** look up or create structured note files **before doing anything else**. Do not proceed with review, code changes, analysis, or any other work until step 5 (writing the agent file) is complete. This workflow is mandatory, not optional.
 
 ## Trigger
 

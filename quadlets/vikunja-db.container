@@ -1,0 +1,20 @@
+[Unit]
+Description=Vikunja PostgreSQL database
+
+[Container]
+Image=docker.io/library/postgres:18
+ContainerName=vikunja-db
+
+Pod=vikunja.pod
+
+Environment=POSTGRES_PASSWORD=<change-me>
+Environment=POSTGRES_USER=vikunja
+
+Volume=vikunja-db.volume:/var/lib/postgresql
+
+HealthCmd=pg_isready -h localhost -U vikunja
+HealthInterval=2s
+HealthStartPeriod=30s
+
+[Install]
+WantedBy=default.target

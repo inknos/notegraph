@@ -1,0 +1,20 @@
+[Unit]
+Description=LiteLLM Proxy (Claude on Vertex AI)
+After=network-online.target
+
+[Container]
+Image=docker.litellm.ai/berriai/litellm:main-latest
+Volume=%h/.config/notegraph/litellm_config.yaml:/app/config.yaml:Z
+Volume=%h/.config/gcloud/application_default_credentials.json:/app/gcloud_creds.json:Z
+Environment=ANTHROPIC_VERTEX_PROJECT_ID=itpc-gcp-core-pe-eng-claude
+Environment=CLOUD_ML_REGION=global
+Environment=GOOGLE_APPLICATION_CREDENTIALS=/app/gcloud_creds.json
+PublishPort=4000:4000
+Exec=--config /app/config.yaml --detailed_debug
+
+[Service]
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target

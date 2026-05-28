@@ -1,0 +1,23 @@
+[Unit]
+Description=Vikunja task management
+After=vikunja-db.service
+Requires=vikunja-db.service
+
+[Container]
+Image=docker.io/vikunja/vikunja:2.3.0
+ContainerName=vikunja
+
+Pod=vikunja.pod
+
+Environment=VIKUNJA_SERVICE_PUBLICURL=http://<your-server-ip>:3456/
+Environment=VIKUNJA_SERVICE_SECRET=<change-me>
+Environment=VIKUNJA_DATABASE_HOST=localhost
+Environment=VIKUNJA_DATABASE_PASSWORD=<change-me>
+Environment=VIKUNJA_DATABASE_TYPE=postgres
+Environment=VIKUNJA_DATABASE_USER=vikunja
+Environment=VIKUNJA_DATABASE_DATABASE=vikunja
+
+Volume=vikunja.volume:/app/vikunja/files
+
+[Install]
+WantedBy=default.target
