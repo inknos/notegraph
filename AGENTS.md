@@ -161,6 +161,28 @@ Any GitHub URL matching `https://github.com/{org}/{repo}/{issues|pull}/{number}`
 
    Keep the file concise and actionable. Update it every time you work on this issue/PR.
 
+## Worktree
+
+Before doing any code work, ensure a worktree exists for the item. Check with `git worktree list`.
+
+**GitHub PR** (`https://github.com/{org}/{repo}/pull/{N}`):
+
+```bash
+git wt pr-origin-N       # creates worktree + branch from origin/main
+cd ../repo-wt-pr-origin-N
+git pr origin N          # fetches PR head and checks it out
+```
+
+Worktree name: `pr-<remote>-<N>` (e.g. `pr-origin-42`).
+
+**GitHub issue** (`https://github.com/{org}/{repo}/issues/{N}`):
+
+```bash
+git wt issue-N           # e.g. git wt issue-123
+```
+
+Worktree name: `issue-<N>` (e.g. `issue-123`).
+
 ## CLI reference
 
 `notegraph fetch --source github [OPTIONS] <github-url>`
@@ -221,6 +243,17 @@ Any Jira URL matching `https://redhat.atlassian.net/browse/<KEY>`, or a bare Jir
    - Anything useful for the user to act on
 
    Keep the file concise and actionable. Update it every time you work on this issue.
+
+## Worktree
+
+Before doing any code work, ensure a worktree exists for the Jira issue. Check with `git worktree list`.
+
+Worktree name is the issue key lowercased:
+
+```bash
+git wt run-1234      # for RUN-1234
+git wt rhel-12345    # for RHEL-12345
+```
 
 ## CLI reference
 
