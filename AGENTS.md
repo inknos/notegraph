@@ -109,8 +109,8 @@ Items are Logseq wikilinks: `- [[github.com/org/repo/pull/123]] title (**status*
 1. **Read** `~/Documents/Logseq/Work/pages/worktodo.md`.
 2. **Show Focus items** and ask which one to work on (or suggest the most stale / most urgent).
 3. **Get context** on the chosen item:
-   - GitHub URL → run `notegraph fetch --source github --check --json <url>`, then read the `.md` and `-note.md` files. Create missing files if needed (run `notegraph fetch --source github <url>`).
-   - Jira key → run `notegraph fetch --source jira --check --json <KEY>`, then read the `.md` and `-note.md` files. Create missing files if needed (run `notegraph fetch --source jira <KEY>`).
+   - GitHub URL → run `notegraph fetch --source github --check --json <url>` to get file paths/existence. Create missing files if needed (run `notegraph fetch --source github <url>`). Then read content via MCP: `get_page_content` with page name `github.com/{org}/{repo}/{issues|pull}/{N}` (summary) and `github.com/{org}/{repo}/{issues|pull}/{N}/note` (user notes).
+   - Jira key → run `notegraph fetch --source jira --check --json <KEY>` to get file paths/existence. Create missing files if needed (run `notegraph fetch --source jira <KEY>`). Then read content via MCP: `get_page_content` with page name `redhat.atlassian.net/{KEY}` (summary) and `redhat.atlassian.net/{KEY}/note` (user notes).
 4. **Write analysis** to the `-agent.md` file (see the GitHub Issue/PR Notes section for the full protocol).
 5. **Proceed** with the work — code changes, PR comments, review, etc.
 
@@ -149,17 +149,17 @@ Any GitHub URL matching `https://github.com/{org}/{repo}/{issues|pull}/{number}`
 
 2. **Create if missing.** If any file has `"exists": false`, run `notegraph fetch --source github <url>` to fetch from GitHub and create the missing files.
 
-3. **Read the summary.** Read the `md` file (`N.md`). It contains the title, description, raw comments, and a Key Discussion Points section. Use this as your primary context about the issue/PR.
+3. **Read the summary.** Call `get_page_content` with page name `github.com/{org}/{repo}/{issues|pull}/{N}`. It contains the title, description, raw comments, and a Key Discussion Points section. Use this as your primary context about the issue/PR.
 
-4. **Read the user's notes (read-only).** Read the `note` file (`N-note.md`). These are the user's personal notes, TODOs, and related links. **Never modify this file** -- it belongs to the user.
+4. **Read the user's notes (read-only).** Call `get_page_content` with page name `github.com/{org}/{repo}/{issues|pull}/{N}/note`. These are the user's personal notes, TODOs, and related links. **Never modify this file** -- it belongs to the user.
 
-5. **Write your analysis to the agent file.** The `agent` file is your workspace. Write a markdown file containing your analysis:
+5. **Write your analysis to the agent file.** Call `update_page` with page name `github.com/{org}/{repo}/{issues|pull}/{N}/agent` (mode: `replace`) to write your analysis. Your workspace page should contain:
    - Summary of the issue/PR and key discussion points
    - Actionable TODOs and next steps
    - Technical notes, code pointers, and suggestions
    - Anything useful for the user to act on
 
-   Keep the file concise and actionable. Update it every time you work on this issue/PR.
+   Keep the page concise and actionable. Update it every time you work on this issue/PR.
 
 ## Worktree
 
@@ -232,17 +232,17 @@ Any Jira URL matching `https://redhat.atlassian.net/browse/<KEY>`, or a bare Jir
 
 2. **Create if missing.** If any file has `"exists": false`, run `notegraph fetch --source jira <KEY>` to fetch from Jira and create the files. If the issue has a linked GitHub PR (via a Jira custom field), the linked PR's note files are also created automatically.
 
-3. **Read the summary.** Read the `md` file. It contains the title, description, status, and comments.
+3. **Read the summary.** Call `get_page_content` with page name `redhat.atlassian.net/{KEY}`. It contains the title, description, status, and comments.
 
-4. **Read the user's notes (read-only).** Read the `note` file if it exists. These are the user's personal notes, TODOs, and related links. **Never modify this file** -- it belongs to the user.
+4. **Read the user's notes (read-only).** Call `get_page_content` with page name `redhat.atlassian.net/{KEY}/note` if it exists. These are the user's personal notes, TODOs, and related links. **Never modify this file** -- it belongs to the user.
 
-5. **Write your analysis to the agent file.** The `agent` file is your workspace. Write a markdown file containing your analysis:
+5. **Write your analysis to the agent file.** Call `update_page` with page name `redhat.atlassian.net/{KEY}/agent` (mode: `replace`) to write your analysis. Your workspace page should contain:
    - Summary of the issue and key discussion points
    - Actionable TODOs and next steps
    - Technical notes, code pointers, and suggestions
    - Anything useful for the user to act on
 
-   Keep the file concise and actionable. Update it every time you work on this issue.
+   Keep the page concise and actionable. Update it every time you work on this issue.
 
 ## Worktree
 
