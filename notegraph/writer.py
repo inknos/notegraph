@@ -10,6 +10,7 @@ Provides three public entry points:
 from __future__ import annotations
 
 import logging
+import re
 from pathlib import Path
 
 from notegraph.schema import (
@@ -34,6 +35,10 @@ _ALL_KINDS: tuple[FileKind, ...] = ("md", "note", "agent")
 # Maps the wikilink suffix string used in _WIKILINKS_FOR_KIND to the FileKind
 # it targets.  The empty string "" means the base (md) page.
 _SUFFIX_TO_KIND: dict[str, FileKind] = {"agent": "agent", "note": "note", "": "md"}
+
+# Matches a Logseq property line, e.g. ``- tags:: [[project]]``.
+# Only lines at the very top of a file (contiguous block) are preserved.
+_LOGSEQ_PROP_RE = re.compile(r"^- \w[\w-]*:: ")
 
 
 def check(
@@ -140,8 +145,24 @@ def write(
             logger.info("  skip (exists): %s", file_path)
             continue
 
-        file_path.write_text(note.content + "\n", encoding="utf-8")
+        # Preserve any Logseq property lines that external tools may have
+        # prepended to the top of the md file (e.g. ``- tags:: [[project]]``).
+        # We collect the contiguous block at the very top of the existing file
+        # and re-prepend it so it survives a re-fetch overwrite.
+        final_content = note.content
+        if kind == "md" and file_path.is_file():
+            existing = file_path.read_text(encoding="utf-8")
+            prop_lines: list[str] = []
+            for line in existing.splitlines():
+                if _LOGSEQ_PROP_RE.match(line):
+                    prop_lines.append(line)
+                else:
+                    break
+            if prop_lines:
+                final_content = "\n".join(prop_lines) + "\n" + final_content
+
         action = "updated" if file_path.is_file() else "created"
+        file_path.write_text(final_content + "\n", encoding="utf-8")
         logger.info("  %s:       %s", action, file_path)
 
 

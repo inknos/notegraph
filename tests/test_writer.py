@@ -167,6 +167,28 @@ class TestWriteSkipIfExists:
         assert new_text != "OLD CONTENT"
         assert "## Description" in new_text
 
+    def test_md_preserves_logseq_properties(
+        self, tmp_dest_dir, sample_note_content, sample_github_ref
+    ):
+        pi = PathInfo.from_github(sample_github_ref, str(tmp_dest_dir))
+
+        # 1. Initial write creates the md file.
+        write(sample_note_content, sample_github_ref, str(tmp_dest_dir))
+        original = Path(pi.md_path).read_text(encoding="utf-8")
+
+        # 2. Simulate Logseq prepending a property line to the file.
+        prop_line = "- tags:: [[project]]"
+        Path(pi.md_path).write_text(prop_line + "\n" + original, encoding="utf-8")
+
+        # 3. Re-run write() to simulate a re-fetch overwrite.
+        write(sample_note_content, sample_github_ref, str(tmp_dest_dir))
+
+        # 4. The property line is preserved at the top and new content is present.
+        result = Path(pi.md_path).read_text(encoding="utf-8")
+        lines = result.splitlines()
+        assert lines[0] == prop_line
+        assert "## Description" in result
+
 
 class TestWriteReplace:
     def test_note_overwritten_with_replace(
