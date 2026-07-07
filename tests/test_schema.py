@@ -217,6 +217,34 @@ class TestPathInfoFromGithub:
         assert pi.path_for("note") == pi.note_path
         assert pi.path_for("agent") == pi.agent_path
 
+    def test_prefix_file_prefix(self, sample_github_ref):
+        pi = PathInfo.from_github(sample_github_ref, "/d", prefix="Wiki___Items___")
+        assert pi.file_prefix == "/d/Wiki___Items___github.com___containers___podman___pull___24126"
+
+    def test_prefix_md_path(self, sample_github_ref):
+        pi = PathInfo.from_github(sample_github_ref, "/d", prefix="Wiki___Items___")
+        assert pi.md_path == "/d/Wiki___Items___github.com___containers___podman___pull___24126.md"
+
+    def test_prefix_note_path(self, sample_github_ref):
+        pi = PathInfo.from_github(sample_github_ref, "/d", prefix="Wiki___Items___")
+        assert pi.note_path == "/d/Wiki___Items___github.com___containers___podman___pull___24126___note.md"
+
+    def test_prefix_agent_path(self, sample_github_ref):
+        pi = PathInfo.from_github(sample_github_ref, "/d", prefix="Wiki___Items___")
+        assert pi.agent_path == "/d/Wiki___Items___github.com___containers___podman___pull___24126___agent.md"
+
+    def test_prefix_wikilinks(self, sample_github_ref):
+        pi = PathInfo.from_github(sample_github_ref, "/d", prefix="Wiki___Items___")
+        assert pi.wikilink == "Wiki/Items/github.com/containers/podman/pull/24126"
+        assert pi.wikilink_note == "Wiki/Items/github.com/containers/podman/pull/24126/note"
+        assert pi.wikilink_agent == "Wiki/Items/github.com/containers/podman/pull/24126/agent"
+
+    def test_empty_prefix_unchanged(self, sample_github_ref):
+        pi_no_prefix = PathInfo.from_github(sample_github_ref, "/d")
+        pi_empty = PathInfo.from_github(sample_github_ref, "/d", prefix="")
+        assert pi_no_prefix.file_prefix == pi_empty.file_prefix
+        assert pi_no_prefix.wikilink_prefix == pi_empty.wikilink_prefix
+
 
 # ===================================================================
 # PathInfo — Jira
@@ -247,6 +275,20 @@ class TestPathInfoFromJira:
         pi = PathInfo.from_jira(sample_jira_ref, "/dest")
         assert pi.agent_path == "/dest/test.atlassian.net___RUN-3555___agent.md"
 
+    def test_prefix_file_prefix(self, sample_jira_ref):
+        pi = PathInfo.from_jira(sample_jira_ref, "/dest", prefix="Wiki___Items___")
+        assert pi.file_prefix == "/dest/Wiki___Items___test.atlassian.net___RUN-3555"
+
+    def test_prefix_md_path(self, sample_jira_ref):
+        pi = PathInfo.from_jira(sample_jira_ref, "/dest", prefix="Wiki___Items___")
+        assert pi.md_path == "/dest/Wiki___Items___test.atlassian.net___RUN-3555.md"
+
+    def test_prefix_wikilinks(self, sample_jira_ref):
+        pi = PathInfo.from_jira(sample_jira_ref, "/dest", prefix="Wiki___Items___")
+        assert pi.wikilink == "Wiki/Items/test.atlassian.net/RUN-3555"
+        assert pi.wikilink_note == "Wiki/Items/test.atlassian.net/RUN-3555/note"
+        assert pi.wikilink_agent == "Wiki/Items/test.atlassian.net/RUN-3555/agent"
+
 
 # ===================================================================
 # PathInfo.from_ref dispatch
@@ -261,6 +303,16 @@ class TestPathInfoFromRef:
     def test_dispatches_to_jira(self, sample_jira_ref):
         pi = PathInfo.from_ref(sample_jira_ref, "/d")
         assert "test.atlassian.net" in pi.file_prefix
+
+    def test_prefix_forwarded_github(self, sample_github_ref):
+        pi = PathInfo.from_ref(sample_github_ref, "/d", prefix="P___")
+        assert pi.file_prefix.startswith("/d/P___")
+        assert pi.wikilink_prefix.startswith("P/")
+
+    def test_prefix_forwarded_jira(self, sample_jira_ref):
+        pi = PathInfo.from_ref(sample_jira_ref, "/d", prefix="P___")
+        assert pi.file_prefix.startswith("/d/P___")
+        assert pi.wikilink_prefix.startswith("P/")
 
 
 # ===================================================================

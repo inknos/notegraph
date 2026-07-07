@@ -399,6 +399,87 @@ class TestRender:
         assert result["agent"].path == pi.agent_path
 
 
+# ---------------------------------------------------------------------------
+# Footer filtering — links suppressed for kinds not being generated
+# ---------------------------------------------------------------------------
+
+
+class TestFooterFiltering:
+    def test_all_kinds_footer_unchanged(
+        self, tmp_dest_dir, sample_note_content, sample_github_ref
+    ):
+        """Regression: default (all kinds) still emits both footer links."""
+        write(sample_note_content, sample_github_ref, str(tmp_dest_dir))
+        pi = PathInfo.from_github(sample_github_ref, str(tmp_dest_dir))
+        md_text = Path(pi.md_path).read_text(encoding="utf-8")
+        assert "[[github.com/containers/podman/pull/24126/agent]]" in md_text
+        assert "[[github.com/containers/podman/pull/24126/note]]" in md_text
+
+    def test_summary_only_no_footer(
+        self, tmp_dest_dir, sample_note_content, sample_github_ref
+    ):
+        """kinds=('md',): md file must have no footer links and no bare '---'."""
+        write(sample_note_content, sample_github_ref, str(tmp_dest_dir), kinds=("md",))
+        pi = PathInfo.from_github(sample_github_ref, str(tmp_dest_dir))
+        md_text = Path(pi.md_path).read_text(encoding="utf-8")
+        assert "[[github.com/containers/podman/pull/24126/agent]]" not in md_text
+        assert "[[github.com/containers/podman/pull/24126/note]]" not in md_text
+        # Footer separator must also be absent (option B: omit entirely)
+        assert "---" not in md_text
+
+    def test_note_only_no_sibling_links(
+        self, tmp_dest_dir, sample_note_content, sample_github_ref
+    ):
+        """kinds=('note',): note file has no links to agent or md."""
+        write(sample_note_content, sample_github_ref, str(tmp_dest_dir), kinds=("note",))
+        pi = PathInfo.from_github(sample_github_ref, str(tmp_dest_dir))
+        note_text = Path(pi.note_path).read_text(encoding="utf-8")
+        assert "[[github.com/containers/podman/pull/24126/agent]]" not in note_text
+        assert "[[github.com/containers/podman/pull/24126]]" not in note_text
+        assert "---" not in note_text
+
+    def test_agent_only_no_sibling_links(
+        self, tmp_dest_dir, sample_note_content, sample_github_ref
+    ):
+        """kinds=('agent',): agent file has no links to md or note."""
+        write(sample_note_content, sample_github_ref, str(tmp_dest_dir), kinds=("agent",))
+        pi = PathInfo.from_github(sample_github_ref, str(tmp_dest_dir))
+        agent_text = Path(pi.agent_path).read_text(encoding="utf-8")
+        assert "[[github.com/containers/podman/pull/24126]]" not in agent_text
+        assert "[[github.com/containers/podman/pull/24126/note]]" not in agent_text
+        assert "---" not in agent_text
+
+    def test_md_and_note_footer_links_to_note_only(
+        self, tmp_dest_dir, sample_note_content, sample_github_ref
+    ):
+        """kinds=('md','note'): md footer links to note but not agent."""
+        write(
+            sample_note_content,
+            sample_github_ref,
+            str(tmp_dest_dir),
+            kinds=("md", "note"),
+        )
+        pi = PathInfo.from_github(sample_github_ref, str(tmp_dest_dir))
+        md_text = Path(pi.md_path).read_text(encoding="utf-8")
+        assert "[[github.com/containers/podman/pull/24126/note]]" in md_text
+        assert "[[github.com/containers/podman/pull/24126/agent]]" not in md_text
+
+    def test_render_summary_only_no_footer(
+        self, tmp_dest_dir, sample_note_content, sample_github_ref
+    ):
+        """render() with kinds=('md',) produces content with no footer."""
+        result = render(
+            sample_note_content,
+            sample_github_ref,
+            str(tmp_dest_dir),
+            kinds=("md",),
+        )
+        md_content = result["md"].content
+        assert "[[github.com/containers/podman/pull/24126/agent]]" not in md_content
+        assert "[[github.com/containers/podman/pull/24126/note]]" not in md_content
+        assert "---" not in md_content
+
+
 class TestRenderedNoteModel:
     def test_basic(self, tmp_path):
         p = str(tmp_path / "test.md")

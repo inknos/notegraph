@@ -254,19 +254,22 @@ class PathInfo(BaseModel):
     # -- factory classmethods -----------------------------------------------
 
     @classmethod
-    def from_github(cls, ref: GitHubRef, dest_dir: str) -> PathInfo:
+    def from_github(cls, ref: GitHubRef, dest_dir: str, prefix: str = "") -> PathInfo:
         """Build ``PathInfo`` for a GitHub ref.
 
         Args:
             ref: Parsed GitHub reference.
             dest_dir: Output directory.
+            prefix: Optional filename/wikilink prefix (e.g. ``"Wiki___Items___"``).
+                Uses ``___`` as the separator in filenames and ``/`` in wikilinks.
 
         Returns:
             Computed path info.
         """
         page_ns = f"github.com___{ref.org}___{ref.repo}___{ref.url_type}"
-        file_prefix = f"{dest_dir}/{page_ns}___{ref.number}"
-        wikilink_prefix = f"github.com/{ref.org}/{ref.repo}/{ref.url_type}/{ref.number}"
+        file_prefix = f"{dest_dir}/{prefix}{page_ns}___{ref.number}"
+        wikilink_ns = prefix.replace("___", "/") if prefix else ""
+        wikilink_prefix = f"{wikilink_ns}github.com/{ref.org}/{ref.repo}/{ref.url_type}/{ref.number}"
         return cls(
             file_prefix=file_prefix,
             file_sep="___",
@@ -275,18 +278,21 @@ class PathInfo(BaseModel):
         )
 
     @classmethod
-    def from_jira(cls, ref: JiraRef, dest_dir: str) -> PathInfo:
+    def from_jira(cls, ref: JiraRef, dest_dir: str, prefix: str = "") -> PathInfo:
         """Build ``PathInfo`` for a Jira ref.
 
         Args:
             ref: Parsed Jira reference.
             dest_dir: Output directory.
+            prefix: Optional filename/wikilink prefix (e.g. ``"Wiki___Items___"``).
+                Uses ``___`` as the separator in filenames and ``/`` in wikilinks.
 
         Returns:
             Computed path info.
         """
-        file_prefix = f"{dest_dir}/{ref.endpoint}___{ref.key}"
-        wikilink_prefix = f"{ref.endpoint}/{ref.key}"
+        wikilink_ns = prefix.replace("___", "/") if prefix else ""
+        file_prefix = f"{dest_dir}/{prefix}{ref.endpoint}___{ref.key}"
+        wikilink_prefix = f"{wikilink_ns}{ref.endpoint}/{ref.key}"
         return cls(
             file_prefix=file_prefix,
             file_sep="___",
@@ -295,19 +301,20 @@ class PathInfo(BaseModel):
         )
 
     @classmethod
-    def from_ref(cls, ref: GitHubRef | JiraRef, dest_dir: str) -> PathInfo:
+    def from_ref(cls, ref: GitHubRef | JiraRef, dest_dir: str, prefix: str = "") -> PathInfo:
         """Dispatch to ``from_github`` or ``from_jira``.
 
         Args:
             ref: A GitHub or Jira reference.
             dest_dir: Output directory.
+            prefix: Optional filename/wikilink prefix.
 
         Returns:
             Computed path info.
         """
         if isinstance(ref, GitHubRef):
-            return cls.from_github(ref, dest_dir)
-        return cls.from_jira(ref, dest_dir)
+            return cls.from_github(ref, dest_dir, prefix=prefix)
+        return cls.from_jira(ref, dest_dir, prefix=prefix)
 
 
 # ---------------------------------------------------------------------------

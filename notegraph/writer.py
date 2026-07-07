@@ -23,6 +23,7 @@ from notegraph.schema import (
     NoteTriplet,
     PathInfo,
     RenderedNote,
+    _WIKILINKS_FOR_KIND,
     expand_hash_refs,
 )
 
@@ -30,21 +31,28 @@ logger = logging.getLogger(__name__)
 
 _ALL_KINDS: tuple[FileKind, ...] = ("md", "note", "agent")
 
+# Maps the wikilink suffix string used in _WIKILINKS_FOR_KIND to the FileKind
+# it targets.  The empty string "" means the base (md) page.
+_SUFFIX_TO_KIND: dict[str, FileKind] = {"agent": "agent", "note": "note", "": "md"}
+
 
 def check(
     ref: GitHubRef | JiraRef,
     dest_dir: str,
+    *,
+    prefix: str = "",
 ) -> NoteTriplet:
     """Compute paths and check file existence without network calls.
 
     Args:
         ref: A GitHub or Jira reference.
         dest_dir: Output directory.
+        prefix: Optional filename/wikilink prefix.
 
     Returns:
         A ``NoteTriplet`` with paths and existence flags.
     """
-    paths = PathInfo.from_ref(ref, dest_dir)
+    paths = PathInfo.from_ref(ref, dest_dir, prefix=prefix)
     return paths.to_triplet()
 
 
@@ -54,6 +62,7 @@ def render(
     dest_dir: str,
     *,
     kinds: tuple[FileKind, ...] = _ALL_KINDS,
+    prefix: str = "",
 ) -> dict[str, RenderedNote]:
     """Render note content into strings without writing to disk.
 
@@ -65,12 +74,13 @@ def render(
         ref: A GitHub or Jira reference.
         dest_dir: Output directory (used for path computation only).
         kinds: Which file kinds to render.  Defaults to all three.
+        prefix: Optional filename/wikilink prefix.
 
     Returns:
         Dict mapping file kind (``"md"``, ``"note"``, ``"agent"``) to a
         ``RenderedNote`` containing the target path and full file content.
     """
-    paths = PathInfo.from_ref(ref, dest_dir)
+    paths = PathInfo.from_ref(ref, dest_dir, prefix=prefix)
 
     if isinstance(ref, GitHubRef):
         expanded = _expand_content(content, ref.org, ref.repo)
@@ -88,7 +98,7 @@ def render(
         )
         header = NoteHeader.from_content(effective, paths, kind)
         body = NoteBody.from_content(effective, kind)
-        text = _assemble(header, body, kind)
+        text = _assemble(header, body, kind, kinds=kinds)
         result[kind] = RenderedNote(path=paths.path_for(kind), content=text)
 
     return result
@@ -101,6 +111,7 @@ def write(
     *,
     kinds: tuple[FileKind, ...] = _ALL_KINDS,
     replace: bool = False,
+    prefix: str = "",
 ) -> None:
     """Render and write note files to disk.
 
@@ -117,8 +128,9 @@ def write(
         dest_dir: Output directory.
         kinds: Which file kinds to write.  Defaults to all three.
         replace: If ``True``, overwrite existing note/agent files.
+        prefix: Optional filename/wikilink prefix.
     """
-    rendered = render(content, ref, dest_dir, kinds=kinds)
+    rendered = render(content, ref, dest_dir, kinds=kinds, prefix=prefix)
     Path(dest_dir).mkdir(parents=True, exist_ok=True)
 
     for kind, note in rendered.items():
@@ -137,6 +149,8 @@ def _assemble(
     header: NoteHeader,
     body: NoteBody,
     kind: FileKind,
+    *,
+    kinds: tuple[FileKind, ...] = _ALL_KINDS,
 ) -> str:
     """Combine header, body, and footer wikilinks into a full file.
 
@@ -144,13 +158,16 @@ def _assemble(
         header: Rendered header model.
         body: Rendered body model.
         kind: Which file in the triplet.
+        kinds: The full set of file kinds being generated in this render
+            pass.  Used to suppress footer links to files that are not
+            being created.
 
     Returns:
         Complete file content as a string.
     """
     header_str = header.to_string(kind)
     body_str = body.to_string(kind)
-    footer = _footer(header, kind)
+    footer = _footer(header, kind, kinds=kinds)
     return f"{header_str}{body_str}{footer}"
 
 
@@ -181,16 +198,34 @@ def _expand_content(content: NoteContent, org: str, repo: str) -> NoteContent:
     )
 
 
-def _footer(header: NoteHeader, kind: FileKind) -> str:  # noqa: ARG001
+def _footer(
+    header: NoteHeader,
+    kind: FileKind,
+    *,
+    kinds: tuple[FileKind, ...] = _ALL_KINDS,
+) -> str:
     """Render the wikilink footer block.
+
+    Only emits links for sibling files that are actually being generated
+    (i.e. whose kind appears in *kinds*).  Returns an empty string when
+    no links survive the filter so the caller omits the footer entirely.
 
     Args:
         header: Header model containing wikilinks.
-        kind: Which file in the triplet (unused, kept for future use).
+        kind: Which file in the triplet being assembled.
+        kinds: The full set of file kinds being generated in this render
+            pass.
 
     Returns:
-        Footer string with separator and wikilinks.
+        Footer string with separator and wikilinks, or ``""`` if no
+        links remain after filtering.
     """
-    lines = ["---", ""]
-    lines.extend(f"[[{wl}]]" for wl in header.wikilinks)
-    return "\n".join(lines)
+    suffixes = _WIKILINKS_FOR_KIND[kind]
+    links = [
+        f"[[{wl}]]"
+        for suffix, wl in zip(suffixes, header.wikilinks)
+        if _SUFFIX_TO_KIND[suffix] in kinds
+    ]
+    if not links:
+        return ""
+    return "\n".join(["---", "", *links])

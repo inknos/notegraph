@@ -179,6 +179,77 @@ class TestFetchDestDirOverride:
 
 
 # ---------------------------------------------------------------------------
+# fetch --prefix
+# ---------------------------------------------------------------------------
+
+
+class TestFetchPrefixFlag:
+    def test_prefix_appears_in_check_output_github(self, tmp_path, sample_config_toml):
+        url = "https://github.com/containers/podman/pull/24126"
+        exit_code, stdout, _ = run_cli(
+            "--config",
+            str(sample_config_toml),
+            "fetch",
+            "--source",
+            "github",
+            "--check",
+            "--prefix",
+            "Wiki___Items___",
+            url,
+        )
+        assert exit_code == 0
+        assert "Wiki___Items___github.com___containers___podman___pull___24126" in stdout
+
+    def test_prefix_appears_in_check_output_jira(self, tmp_path, sample_config_toml):
+        exit_code, stdout, _ = run_cli(
+            "--config",
+            str(sample_config_toml),
+            "fetch",
+            "--source",
+            "jira",
+            "--check",
+            "--prefix",
+            "Wiki___Items___",
+            "RUN-3555",
+        )
+        assert exit_code == 0
+        assert "Wiki___Items___test.atlassian.net___RUN-3555" in stdout
+
+    def test_prefix_in_json_check_github(self, tmp_path, sample_config_toml):
+        url = "https://github.com/containers/podman/pull/24126"
+        exit_code, stdout, _ = run_cli(
+            "--config",
+            str(sample_config_toml),
+            "fetch",
+            "--source",
+            "github",
+            "--check",
+            "--json",
+            "--prefix",
+            "Wiki___Items___",
+            url,
+        )
+        assert exit_code == 0
+        data = json.loads(stdout)
+        assert "Wiki___Items___github.com___containers___podman___pull___24126" in data["md"]["path"]
+
+    def test_no_prefix_unchanged(self, tmp_path, sample_config_toml):
+        """Without --prefix, output paths must not contain the prefix string."""
+        url = "https://github.com/containers/podman/pull/24126"
+        exit_code, stdout, _ = run_cli(
+            "--config",
+            str(sample_config_toml),
+            "fetch",
+            "--source",
+            "github",
+            "--check",
+            url,
+        )
+        assert exit_code == 0
+        assert "Wiki___Items___" not in stdout
+
+
+# ---------------------------------------------------------------------------
 # Global --config flag
 # ---------------------------------------------------------------------------
 
@@ -265,6 +336,108 @@ class TestFetchGitHubWrite:
 
 
 # ---------------------------------------------------------------------------
+# fetch --prefix (end-to-end write with prefix)
+# ---------------------------------------------------------------------------
+
+
+class TestFetchPrefixWrite:
+    @patch("notegraph.cli.github_api.fetch", return_value=_MOCK_GH_CONTENT)
+    def test_prefix_creates_prefixed_files(self, mock_fetch, sample_config_toml, tmp_path):
+        graph_dir = _extract_graph_dir(sample_config_toml)
+        url = "https://github.com/o/r/pull/1"
+        exit_code, _, _ = run_cli(
+            "--config",
+            str(sample_config_toml),
+            "fetch",
+            "--source",
+            "github",
+            "--prefix",
+            "Wiki___Items___",
+            url,
+        )
+        assert exit_code == 0
+        md = Path(graph_dir) / "Wiki___Items___github.com___o___r___pull___1.md"
+        note = Path(graph_dir) / "Wiki___Items___github.com___o___r___pull___1___note.md"
+        agent = Path(graph_dir) / "Wiki___Items___github.com___o___r___pull___1___agent.md"
+        assert md.is_file()
+        assert note.is_file()
+        assert agent.is_file()
+
+    @patch("notegraph.cli.github_api.fetch", return_value=_MOCK_GH_CONTENT)
+    def test_prefix_in_wikilinks_inside_file(self, mock_fetch, sample_config_toml, tmp_path):
+        graph_dir = _extract_graph_dir(sample_config_toml)
+        url = "https://github.com/o/r/pull/1"
+        exit_code, _, _ = run_cli(
+            "--config",
+            str(sample_config_toml),
+            "fetch",
+            "--source",
+            "github",
+            "--prefix",
+            "Wiki___Items___",
+            url,
+        )
+        assert exit_code == 0
+        md_text = (Path(graph_dir) / "Wiki___Items___github.com___o___r___pull___1.md").read_text(
+            encoding="utf-8"
+        )
+        # Footer wikilinks should carry the prefix as a namespace
+        assert "[[Wiki/Items/github.com/o/r/pull/1" in md_text
+
+    @patch("notegraph.cli.github_api.fetch", return_value=_MOCK_GH_CONTENT)
+    def test_prefix_from_config(self, mock_fetch, tmp_path):
+        """[logseq] prefix in config is used when --prefix is not passed."""
+        graph_dir = tmp_path / "pages"
+        graph_dir.mkdir()
+        config_path = tmp_path / "cfg.toml"
+        config_path.write_text(
+            f'[logseq]\ngraph_dir = "{graph_dir}"\nprefix = "Cfg___Prefix___"\n\n'
+            '[github]\ntoken = "t"\n',
+            encoding="utf-8",
+        )
+        url = "https://github.com/o/r/pull/1"
+        exit_code, _, _ = run_cli(
+            "--config",
+            str(config_path),
+            "fetch",
+            "--source",
+            "github",
+            url,
+        )
+        assert exit_code == 0
+        md = Path(graph_dir) / "Cfg___Prefix___github.com___o___r___pull___1.md"
+        assert md.is_file()
+
+    @patch("notegraph.cli.github_api.fetch", return_value=_MOCK_GH_CONTENT)
+    def test_cli_prefix_overrides_config(self, mock_fetch, tmp_path):
+        """--prefix CLI flag overrides [logseq] prefix from config."""
+        graph_dir = tmp_path / "pages"
+        graph_dir.mkdir()
+        config_path = tmp_path / "cfg.toml"
+        config_path.write_text(
+            f'[logseq]\ngraph_dir = "{graph_dir}"\nprefix = "Config___"\n\n'
+            '[github]\ntoken = "t"\n',
+            encoding="utf-8",
+        )
+        url = "https://github.com/o/r/pull/1"
+        exit_code, _, _ = run_cli(
+            "--config",
+            str(config_path),
+            "fetch",
+            "--source",
+            "github",
+            "--prefix",
+            "CLI___",
+            url,
+        )
+        assert exit_code == 0
+        # CLI prefix wins
+        assert (Path(graph_dir) / "CLI___github.com___o___r___pull___1.md").is_file()
+        # Config prefix should NOT be used
+        assert not (Path(graph_dir) / "Config___github.com___o___r___pull___1.md").is_file()
+
+
+# ---------------------------------------------------------------------------
 # fetch --summary / --note / --analysis kind selection
 # ---------------------------------------------------------------------------
 
@@ -323,6 +496,28 @@ class TestFetchKindFlags:
         assert (Path(graph_dir) / "github.com___o___r___pull___1.md").is_file()
         assert (Path(graph_dir) / "github.com___o___r___pull___1___note.md").is_file()
         assert (Path(graph_dir) / "github.com___o___r___pull___1___agent.md").is_file()
+
+    @patch("notegraph.cli.github_api.fetch", return_value=_MOCK_GH_CONTENT)
+    def test_summary_only_no_footer_wikilinks(self, mock_fetch, sample_config_toml, tmp_path):
+        """--summary: generated md file must contain no broken footer wikilinks."""
+        graph_dir = _extract_graph_dir(sample_config_toml)
+        url = "https://github.com/o/r/pull/1"
+        exit_code, _, _ = run_cli(
+            "--config",
+            str(sample_config_toml),
+            "fetch",
+            "--source",
+            "github",
+            "--summary",
+            url,
+        )
+        assert exit_code == 0
+        md_text = (Path(graph_dir) / "github.com___o___r___pull___1.md").read_text(
+            encoding="utf-8"
+        )
+        assert "[[github.com/o/r/pull/1/agent]]" not in md_text
+        assert "[[github.com/o/r/pull/1/note]]" not in md_text
+        assert "---" not in md_text
 
 
 # ---------------------------------------------------------------------------

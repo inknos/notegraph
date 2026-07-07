@@ -129,6 +129,7 @@ class LogseqConfig(BaseModel):
     """Logseq output configuration."""
 
     graph_dir: str = "~/Documents/Logseq/Work/pages"
+    prefix: str = ""
 
 
 class VikunjaConfig(BaseModel):
@@ -384,6 +385,15 @@ class FetchArgs(BaseModel):
         str | None,
         Parameter(help="Override output directory."),
     ] = None
+    prefix: Annotated[
+        str | None,
+        Parameter(
+            help=(
+                "Prefix for output filenames and wikilinks "
+                "(e.g. 'Wiki___Items___'). Overrides [logseq].prefix in config."
+            ),
+        ),
+    ] = None
 
 
 class TodoArgs(BaseModel):
@@ -437,6 +447,15 @@ class TodoArgs(BaseModel):
         str | None,
         Parameter(help="Override output directory."),
     ] = None
+    prefix: Annotated[
+        str | None,
+        Parameter(
+            help=(
+                "Prefix for output filenames and wikilinks "
+                "(e.g. 'Wiki___Items___'). Overrides [logseq].prefix in config."
+            ),
+        ),
+    ] = None
 
 
 # ---------------------------------------------------------------------------
@@ -467,18 +486,19 @@ def fetch(args: Annotated[FetchArgs, Parameter(name="*")] = _DEFAULT_FETCH_ARGS)
         raise SystemExit(1)
 
     dest = args.dest_dir or cfg.dest_dir
+    prefix = args.prefix if args.prefix is not None else cfg.logseq.prefix
 
     if args.source == "github":
-        _fetch_github(args, cfg, dest)
+        _fetch_github(args, cfg, dest, prefix=prefix)
     else:
-        _fetch_jira(args, cfg, dest)
+        _fetch_jira(args, cfg, dest, prefix=prefix)
 
 
-def _fetch_github(args: FetchArgs, cfg: AppConfig, dest: str) -> None:
+def _fetch_github(args: FetchArgs, cfg: AppConfig, dest: str, *, prefix: str = "") -> None:
     ref = GitHubRef.from_url(args.target)
 
     if args.check:
-        triplet = writer_check(ref, dest)
+        triplet = writer_check(ref, dest, prefix=prefix)
         if args.json_output:
             sys.stdout.write(triplet.model_dump_json(indent=2) + "\n")
         else:
@@ -489,7 +509,7 @@ def _fetch_github(args: FetchArgs, cfg: AppConfig, dest: str) -> None:
     content = github_api.fetch(ref, token=cfg.github.token)
 
     if args.json_output:
-        rendered = writer.render(content, ref, dest, kinds=kinds)
+        rendered = writer.render(content, ref, dest, kinds=kinds, prefix=prefix)
         out = {k: v.model_dump() for k, v in rendered.items()}
         sys.stdout.write(json.dumps(out, indent=2) + "\n")
         return
@@ -498,14 +518,14 @@ def _fetch_github(args: FetchArgs, cfg: AppConfig, dest: str) -> None:
         sys.stderr.write(f"[dry-run] would write notes for GitHub {args.target}\n")
         return
 
-    writer.write(content, ref, dest, kinds=kinds, replace=args.replace)
+    writer.write(content, ref, dest, kinds=kinds, replace=args.replace, prefix=prefix)
 
 
-def _fetch_jira(args: FetchArgs, cfg: AppConfig, dest: str) -> None:
+def _fetch_jira(args: FetchArgs, cfg: AppConfig, dest: str, *, prefix: str = "") -> None:
     ref = JiraRef.from_string(args.target, default_endpoint=cfg.jira.endpoint)
 
     if args.check:
-        triplet = writer_check(ref, dest)
+        triplet = writer_check(ref, dest, prefix=prefix)
         if args.json_output:
             sys.stdout.write(triplet.model_dump_json(indent=2) + "\n")
         else:
@@ -521,7 +541,7 @@ def _fetch_jira(args: FetchArgs, cfg: AppConfig, dest: str) -> None:
     )
 
     if args.json_output:
-        rendered = writer.render(content, ref, dest, kinds=kinds)
+        rendered = writer.render(content, ref, dest, kinds=kinds, prefix=prefix)
         out = {k: v.model_dump() for k, v in rendered.items()}
         sys.stdout.write(json.dumps(out, indent=2) + "\n")
         return
@@ -530,8 +550,8 @@ def _fetch_jira(args: FetchArgs, cfg: AppConfig, dest: str) -> None:
         sys.stderr.write(f"[dry-run] would write notes for Jira {args.target}\n")
         return
 
-    writer.write(content, ref, dest, kinds=kinds, replace=args.replace)
-    _chain_github(content, dest, cfg=cfg, replace=args.replace)
+    writer.write(content, ref, dest, kinds=kinds, replace=args.replace, prefix=prefix)
+    _chain_github(content, dest, cfg=cfg, replace=args.replace, prefix=prefix)
 
 
 _DEFAULT_TODO_ARGS = TodoArgs()
@@ -551,6 +571,7 @@ def todo(args: Annotated[TodoArgs, Parameter(name="*")] = _DEFAULT_TODO_ARGS) ->
     """
     cfg = _get_config()
     dest = args.dest_dir or cfg.dest_dir
+    prefix = args.prefix if args.prefix is not None else cfg.logseq.prefix
 
     if args.json_output and args.vikunja:
         sys.stderr.write("Error: --json cannot be combined with --vikunja.\n")
@@ -567,7 +588,7 @@ def todo(args: Annotated[TodoArgs, Parameter(name="*")] = _DEFAULT_TODO_ARGS) ->
         items = _collect_todo_items(args, cfg)
 
     if args.sync:
-        _sync_worktodo(items, dest, cfg)
+        _sync_worktodo(items, dest, cfg, prefix=prefix)
 
     if args.vikunja:
         from notegraph.vikunja_sync import run_sync  # noqa: PLC0415
@@ -636,6 +657,8 @@ def _sync_worktodo(
     items: list,
     dest: str,
     cfg: AppConfig,
+    *,
+    prefix: str = "",
 ) -> None:
     """Write ``worktodo.md`` and fetch note triplets for every item.
 
@@ -643,6 +666,7 @@ def _sync_worktodo(
         items: All collected todo items.
         dest: Output directory.
         cfg: Application config.
+        prefix: Optional filename/wikilink prefix.
     """
     if _cli_dry_run:
         sys.stderr.write(
@@ -662,7 +686,7 @@ def _sync_worktodo(
             if item.source == "github":
                 ref = GitHubRef.from_url(item.url)
                 content = github_api.fetch(ref, token=cfg.github.token)
-                writer.write(content, ref, dest, replace=False)
+                writer.write(content, ref, dest, replace=False, prefix=prefix)
             elif item.source == "jira":
                 ref = JiraRef.from_string(item.url, default_endpoint=cfg.jira.endpoint)
                 content = jira_api.fetch(
@@ -671,8 +695,8 @@ def _sync_worktodo(
                     token=cfg.jira.token,
                     github_field=cfg.jira.github_field,
                 )
-                writer.write(content, ref, dest, replace=False)
-                _chain_github(content, dest, cfg=cfg, replace=False)
+                writer.write(content, ref, dest, replace=False, prefix=prefix)
+                _chain_github(content, dest, cfg=cfg, replace=False, prefix=prefix)
         except (GitHubFetchError, JiraFetchError, ValueError) as exc:
             logger.warning("Skipping %s: %s", item.url, exc)
 
@@ -683,6 +707,7 @@ def _chain_github(
     *,
     cfg: AppConfig,
     replace: bool,
+    prefix: str = "",
 ) -> None:
     """If *content* references a GitHub PR/issue, fetch and write its notes.
 
@@ -691,6 +716,7 @@ def _chain_github(
         dest: Output directory.
         cfg: Application config (provides the GitHub token).
         replace: Whether to overwrite existing files.
+        prefix: Optional filename/wikilink prefix.
     """
     gh_url = content.extra.get("github_url")
     if not gh_url:
@@ -700,7 +726,7 @@ def _chain_github(
     except ValueError:
         return
     gh_content = github_api.fetch(gh_ref, token=cfg.github.token)
-    writer.write(gh_content, gh_ref, dest, replace=replace)
+    writer.write(gh_content, gh_ref, dest, replace=replace, prefix=prefix)
 
 
 _CHECK_SOURCES = ("github", "jira", "vikunja", "llm")
