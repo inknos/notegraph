@@ -109,8 +109,8 @@ Items are Logseq wikilinks: `- [[github.com/org/repo/pull/123]] title (**status*
 1. **Read** `~/Documents/Logseq/Work/pages/worktodo.md`.
 2. **Show Focus items** and ask which one to work on (or suggest the most stale / most urgent).
 3. **Get context** on the chosen item:
-   - GitHub URL → run `notegraph fetch --source github --check --json <url>` to get file paths/existence. Create missing files if needed (run `notegraph fetch --source github <url>`). Then read content via MCP: `get_page_content` with page name `github.com/{org}/{repo}/{issues|pull}/{N}` (summary) and `github.com/{org}/{repo}/{issues|pull}/{N}/note` (user notes).
-   - Jira key → run `notegraph fetch --source jira --check --json <KEY>` to get file paths/existence. Create missing files if needed (run `notegraph fetch --source jira <KEY>`). Then read content via MCP: `get_page_content` with page name `redhat.atlassian.net/{KEY}` (summary) and `redhat.atlassian.net/{KEY}/note` (user notes).
+   - GitHub URL → run `notegraph fetch --source github --check --json <url>`, then read the `.md` and `-note.md` files **via `mcp-logseq_get_page_content`** (never the `Read` tool). Create missing files if needed (run `notegraph fetch --source github <url>`).
+   - Jira key → run `notegraph fetch --source jira --check --json <KEY>`, then read the `.md` and `-note.md` files **via `mcp-logseq_get_page_content`** (never the `Read` tool). Create missing files if needed (run `notegraph fetch --source jira <KEY>`).
 4. **Write analysis** to the `-agent.md` file (see the GitHub Issue/PR Notes section for the full protocol).
 5. **Proceed** with the work — code changes, PR comments, review, etc.
 
@@ -137,7 +137,7 @@ The `--sync` flag writes `worktodo.md` and fetches note triplets for each item. 
 
 # GitHub Issue/PR Notes
 
-When the user references a GitHub issue or PR URL, **always** look up or create structured note files **before doing anything else**. Do not proceed with review, code changes, analysis, or any other work until step 5 (writing the agent file) is complete. This workflow is mandatory, not optional.
+When the user references a GitHub issue or PR URL, look up or create structured note files, then use them.
 
 ## Trigger
 
@@ -149,17 +149,17 @@ Any GitHub URL matching `https://github.com/{org}/{repo}/{issues|pull}/{number}`
 
 2. **Create if missing.** If any file has `"exists": false`, run `notegraph fetch --source github <url>` to fetch from GitHub and create the missing files.
 
-3. **Read the summary.** Call `get_page_content` with page name `github.com/{org}/{repo}/{issues|pull}/{N}`. It contains the title, description, raw comments, and a Key Discussion Points section. Use this as your primary context about the issue/PR.
+3. **Read the summary.** Read the `md` file using `mcp-logseq_get_page_content`. **Never use the `Read` tool for note files — always go through the MCP.** Derive the Logseq page name from the file path by stripping the Logseq pages directory prefix and the `.md` suffix, then replacing `___` with `/`. For example: `.../pages/github.com___containers___podman-py___pull___634.md` → page name `github.com/containers/podman-py/pull/634`. The `md` file contains the title, description, raw comments, and a Key Discussion Points section. Use this as your primary context about the issue/PR.
 
-4. **Read the user's notes (read-only).** Call `get_page_content` with page name `github.com/{org}/{repo}/{issues|pull}/{N}/note`. These are the user's personal notes, TODOs, and related links. **Never modify this file** -- it belongs to the user.
+4. **Read the user's notes (read-only).** Read the `note` file using `mcp-logseq_get_page_content` (same page name derivation as above, with `/note` appended, e.g. `github.com/containers/podman-py/pull/634/note`). These are the user's personal notes, TODOs, and related links. **Never modify this file** -- it belongs to the user.
 
-5. **Write your analysis to the agent file.** Call `update_page` with page name `github.com/{org}/{repo}/{issues|pull}/{N}/agent` (mode: `replace`) to write your analysis. Your workspace page should contain:
+5. **Write your analysis to the agent file.** The `agent` file is your workspace. Use `mcp-logseq_get_page_content` to read it (page name with `/agent` appended) and `mcp-logseq_update_page` to write. **Never use the `Read` or `Write` tools for agent files.** Write a markdown file containing your analysis:
    - Summary of the issue/PR and key discussion points
    - Actionable TODOs and next steps
    - Technical notes, code pointers, and suggestions
    - Anything useful for the user to act on
 
-   Keep the page concise and actionable. Update it every time you work on this issue/PR.
+   Keep the file concise and actionable. Update it every time you work on this issue/PR.
 
 ## Worktree
 
@@ -232,17 +232,17 @@ Any Jira URL matching `https://redhat.atlassian.net/browse/<KEY>`, or a bare Jir
 
 2. **Create if missing.** If any file has `"exists": false`, run `notegraph fetch --source jira <KEY>` to fetch from Jira and create the files. If the issue has a linked GitHub PR (via a Jira custom field), the linked PR's note files are also created automatically.
 
-3. **Read the summary.** Call `get_page_content` with page name `redhat.atlassian.net/{KEY}`. It contains the title, description, status, and comments.
+3. **Read the summary.** Read the `md` file using `mcp-logseq_get_page_content`. **Never use the `Read` tool for note files — always go through the MCP.** Derive the Logseq page name from the file path by stripping the Logseq pages directory prefix and the `.md` suffix, then replacing `___` with `/`. For example: `.../pages/RUN-1234.md` → page name `RUN-1234`. The `md` file contains the title, description, status, and comments.
 
-4. **Read the user's notes (read-only).** Call `get_page_content` with page name `redhat.atlassian.net/{KEY}/note` if it exists. These are the user's personal notes, TODOs, and related links. **Never modify this file** -- it belongs to the user.
+4. **Read the user's notes (read-only).** Read the `note` file using `mcp-logseq_get_page_content` if it exists (page name with `/note` appended). These are the user's personal notes, TODOs, and related links. **Never modify this file** -- it belongs to the user.
 
-5. **Write your analysis to the agent file.** Call `update_page` with page name `redhat.atlassian.net/{KEY}/agent` (mode: `replace`) to write your analysis. Your workspace page should contain:
+5. **Write your analysis to the agent file.** The `agent` file is your workspace. Use `mcp-logseq_get_page_content` to read it (page name with `/agent` appended) and `mcp-logseq_update_page` to write. **Never use the `Read` or `Write` tools for agent files.** Write a markdown file containing your analysis:
    - Summary of the issue and key discussion points
    - Actionable TODOs and next steps
    - Technical notes, code pointers, and suggestions
    - Anything useful for the user to act on
 
-   Keep the page concise and actionable. Update it every time you work on this issue.
+   Keep the file concise and actionable. Update it every time you work on this issue.
 
 ## Worktree
 
