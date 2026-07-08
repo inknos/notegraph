@@ -109,8 +109,8 @@ Items are Logseq wikilinks: `- [[github.com/org/repo/pull/123]] title (**status*
 1. **Read** `~/Documents/Logseq/Work/pages/worktodo.md`.
 2. **Show Focus items** and ask which one to work on (or suggest the most stale / most urgent).
 3. **Get context** on the chosen item:
-   - GitHub URL → run `notegraph fetch --source github --check --json <url>`, then read the `.md` and `-note.md` files **via `mcp-logseq_get_page_content`** (never the `Read` tool). Create missing files if needed (run `notegraph fetch --source github <url>`).
-   - Jira key → run `notegraph fetch --source jira --check --json <KEY>`, then read the `.md` and `-note.md` files **via `mcp-logseq_get_page_content`** (never the `Read` tool). Create missing files if needed (run `notegraph fetch --source jira <KEY>`).
+   - GitHub URL → run `notegraph fetch --source github --check --json <url>`, then read the `.md` and `-note.md` files. Create missing files if needed (run `notegraph fetch --source github <url>`).
+   - Jira key → run `notegraph fetch --source jira --check --json <KEY>`, then read the `.md` and `-note.md` files. Create missing files if needed (run `notegraph fetch --source jira <KEY>`).
 4. **Write analysis** to the `-agent.md` file (see the GitHub Issue/PR Notes section for the full protocol).
 5. **Proceed** with the work — code changes, PR comments, review, etc.
 
@@ -153,7 +153,7 @@ Any GitHub URL matching `https://github.com/{org}/{repo}/{issues|pull}/{number}`
 
 4. **Read the user's notes (read-only).** Read the `note` file using `mcp-logseq_get_page_content`. Use the `page` value from the `note` entry in the `--check --json` output directly (e.g. `github.com/containers/podman-py/pull/634/note`). These are the user's personal notes, TODOs, and related links. **Never modify this file** -- it belongs to the user.
 
-5. **Write your analysis to the agent file.** The `agent` file is your workspace. Use `mcp-logseq_get_page_content` to read it (page name with `/agent` appended) and `mcp-logseq_update_page` to write. **Never use the `Read` or `Write` tools for agent files.** Write a markdown file containing your analysis:
+5. **Write your analysis to the agent file.** The `agent` file is your workspace. Use `mcp-logseq_get_page_content` to read it (use the `page` value from the `agent` entry) and `mcp-logseq_update_page` to write. **Never use the `Read` or `Write` tools for agent files.** Write a markdown file containing your analysis:
    - Summary of the issue/PR and key discussion points
    - Actionable TODOs and next steps
    - Technical notes, code pointers, and suggestions
@@ -236,9 +236,9 @@ Any Jira URL matching `https://redhat.atlassian.net/browse/<KEY>`, or a bare Jir
 
 3. **Read the summary.** Read the `md` file using `mcp-logseq_get_page_content`. **Never use the `Read` tool for note files — always go through the MCP.** Use the `page` value from the `--check --json` output directly as the page name (e.g. `RUN-1234`). The `md` file contains the title, description, status, and comments.
 
-4. **Read the user's notes (read-only).** Read the `note` file using `mcp-logseq_get_page_content` if it exists (page name with `/note` appended). These are the user's personal notes, TODOs, and related links. **Never modify this file** -- it belongs to the user.
+4. **Read the user's notes (read-only).** Read the `note` file using `mcp-logseq_get_page_content` if it exists. Use the `page` value from the `note` entry in the `--check --json` output directly. These are the user's personal notes, TODOs, and related links. **Never modify this file** -- it belongs to the user.
 
-5. **Write your analysis to the agent file.** The `agent` file is your workspace. Use `mcp-logseq_get_page_content` to read it (page name with `/agent` appended) and `mcp-logseq_update_page` to write. **Never use the `Read` or `Write` tools for agent files.** Write a markdown file containing your analysis:
+5. **Write your analysis to the agent file.** The `agent` file is your workspace. Use `mcp-logseq_get_page_content` to read it (use the `page` value from the `agent` entry) and `mcp-logseq_update_page` to write. **Never use the `Read` or `Write` tools for agent files.** Write a markdown file containing your analysis:
    - Summary of the issue and key discussion points
    - Actionable TODOs and next steps
    - Technical notes, code pointers, and suggestions
