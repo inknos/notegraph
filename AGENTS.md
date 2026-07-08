@@ -149,9 +149,9 @@ Any GitHub URL matching `https://github.com/{org}/{repo}/{issues|pull}/{number}`
 
 2. **Create if missing.** If any file has `"exists": false`, run `notegraph fetch --source github <url>` to fetch from GitHub and create the missing files.
 
-3. **Read the summary.** Read the `md` file using `mcp-logseq_get_page_content`. **Never use the `Read` tool for note files — always go through the MCP.** Derive the Logseq page name from the file path by stripping the Logseq pages directory prefix and the `.md` suffix, then replacing `___` with `/`. For example: `.../pages/github.com___containers___podman-py___pull___634.md` → page name `github.com/containers/podman-py/pull/634`. The `md` file contains the title, description, raw comments, and a Key Discussion Points section. Use this as your primary context about the issue/PR.
+3. **Read the summary.** Read the `md` file using `mcp-logseq_get_page_content`. **Never use the `Read` tool for note files — always go through the MCP.** Use the `page` value from the `--check --json` output directly as the page name (e.g. `github.com/containers/podman-py/pull/634`). The `md` file contains the title, description, raw comments, and a Key Discussion Points section. Use this as your primary context about the issue/PR.
 
-4. **Read the user's notes (read-only).** Read the `note` file using `mcp-logseq_get_page_content` (same page name derivation as above, with `/note` appended, e.g. `github.com/containers/podman-py/pull/634/note`). These are the user's personal notes, TODOs, and related links. **Never modify this file** -- it belongs to the user.
+4. **Read the user's notes (read-only).** Read the `note` file using `mcp-logseq_get_page_content`. Use the `page` value from the `note` entry in the `--check --json` output directly (e.g. `github.com/containers/podman-py/pull/634/note`). These are the user's personal notes, TODOs, and related links. **Never modify this file** -- it belongs to the user.
 
 5. **Write your analysis to the agent file.** The `agent` file is your workspace. Use `mcp-logseq_get_page_content` to read it (page name with `/agent` appended) and `mcp-logseq_update_page` to write. **Never use the `Read` or `Write` tools for agent files.** Write a markdown file containing your analysis:
    - Summary of the issue/PR and key discussion points
@@ -202,11 +202,13 @@ The `--check --json` output looks like:
 
 ```json
 {
-  "md":     { "path": "/path/to/N.md",          "exists": true  },
-  "note":   { "path": "/path/to/N-note.md",     "exists": true  },
-  "agent":  { "path": "/path/to/N-agent.md",    "exists": false }
+  "md":    { "path": "/path/to/N.md",          "page": "github.com/org/repo/pull/N",        "exists": true  },
+  "note":  { "path": "/path/to/N___note.md",   "page": "github.com/org/repo/pull/N/note",   "exists": true  },
+  "agent": { "path": "/path/to/N___agent.md",  "page": "github.com/org/repo/pull/N/agent",  "exists": false }
 }
 ```
+
+Use the `page` values directly with `mcp-logseq_get_page_content` — no path manipulation needed.
 
 ## File purposes
 
@@ -232,7 +234,7 @@ Any Jira URL matching `https://redhat.atlassian.net/browse/<KEY>`, or a bare Jir
 
 2. **Create if missing.** If any file has `"exists": false`, run `notegraph fetch --source jira <KEY>` to fetch from Jira and create the files. If the issue has a linked GitHub PR (via a Jira custom field), the linked PR's note files are also created automatically.
 
-3. **Read the summary.** Read the `md` file using `mcp-logseq_get_page_content`. **Never use the `Read` tool for note files — always go through the MCP.** Derive the Logseq page name from the file path by stripping the Logseq pages directory prefix and the `.md` suffix, then replacing `___` with `/`. For example: `.../pages/RUN-1234.md` → page name `RUN-1234`. The `md` file contains the title, description, status, and comments.
+3. **Read the summary.** Read the `md` file using `mcp-logseq_get_page_content`. **Never use the `Read` tool for note files — always go through the MCP.** Use the `page` value from the `--check --json` output directly as the page name (e.g. `RUN-1234`). The `md` file contains the title, description, status, and comments.
 
 4. **Read the user's notes (read-only).** Read the `note` file using `mcp-logseq_get_page_content` if it exists (page name with `/note` appended). These are the user's personal notes, TODOs, and related links. **Never modify this file** -- it belongs to the user.
 
@@ -274,11 +276,13 @@ The `--check --json` output looks like:
 
 ```json
 {
-  "md":     { "path": "/path/to/KEY.md",          "exists": true  },
-  "note":   { "path": "/path/to/KEY-note.md",     "exists": true  },
-  "agent":  { "path": "/path/to/KEY-agent.md",    "exists": false }
+  "md":     { "path": "/path/to/KEY.md",          "page": "KEY",        "exists": true  },
+  "note":   { "path": "/path/to/KEY___note.md",   "page": "KEY/note",   "exists": true  },
+  "agent":  { "path": "/path/to/KEY___agent.md",  "page": "KEY/agent",  "exists": false }
 }
 ```
+
+Use the `page` values directly with `mcp-logseq_get_page_content` — no path manipulation needed.
 
 ## File purposes
 
