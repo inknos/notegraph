@@ -147,6 +147,7 @@ class FileStatus(BaseModel):
     """Path and existence flag for a single note file."""
 
     path: str
+    page: str
     exists: bool
 
 
@@ -172,11 +173,12 @@ class NoteTriplet(BaseModel):
             ("note", self.note),
             ("agent", self.agent),
         ]
+        page_width = max(len(r[1].page) for r in rows)
         path_width = max(len(r[1].path) for r in rows)
-        lines = [f"  {'Kind':<8} {'Exists':<8} {'Path'}"]
+        lines = [f"  {'Kind':<8} {'Exists':<8} {'Page':<{page_width}}  {'Path'}"]
         for kind, fs in rows:
             marker = "\u2713" if fs.exists else "\u2717"
-            lines.append(f"  {kind:<8} {marker:<8} {fs.path:<{path_width}}")
+            lines.append(f"  {kind:<8} {marker:<8} {fs.page:<{page_width}}  {fs.path:<{path_width}}")
         return "\n".join(lines)
 
 
@@ -246,9 +248,9 @@ class PathInfo(BaseModel):
     def to_triplet(self) -> NoteTriplet:
         """Check file existence and return a ``NoteTriplet``."""
         return NoteTriplet(
-            md=FileStatus(path=self.md_path, exists=Path(self.md_path).is_file()),
-            note=FileStatus(path=self.note_path, exists=Path(self.note_path).is_file()),
-            agent=FileStatus(path=self.agent_path, exists=Path(self.agent_path).is_file()),
+            md=FileStatus(path=self.md_path, page=self.wikilink, exists=Path(self.md_path).is_file()),
+            note=FileStatus(path=self.note_path, page=self.wikilink_note, exists=Path(self.note_path).is_file()),
+            agent=FileStatus(path=self.agent_path, page=self.wikilink_agent, exists=Path(self.agent_path).is_file()),
         )
 
     # -- factory classmethods -----------------------------------------------

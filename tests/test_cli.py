@@ -613,7 +613,11 @@ class TestFetchJsonFlag:
         assert "note" in data
         assert "agent" in data
         assert "path" in data["md"]
+        assert "page" in data["md"]
         assert "exists" in data["md"]
+        assert data["md"]["page"] == "github.com/o/r/pull/1"
+        assert data["note"]["page"] == "github.com/o/r/pull/1/note"
+        assert data["agent"]["page"] == "github.com/o/r/pull/1/agent"
 
     def test_json_check_jira(self, sample_config_toml):
         exit_code, stdout, _ = run_cli(
@@ -629,6 +633,10 @@ class TestFetchJsonFlag:
         assert exit_code == 0
         data = json.loads(stdout)
         assert "RUN-3555" in data["md"]["path"]
+        assert "page" in data["md"]
+        assert "RUN-3555" in data["md"]["page"]
+        assert data["note"]["page"].endswith("/note")
+        assert data["agent"]["page"].endswith("/agent")
 
     @patch("notegraph.cli.github_api.fetch", return_value=_MOCK_GH_CONTENT)
     def test_json_render_no_files(self, mock_fetch, sample_config_toml, tmp_path):

@@ -121,35 +121,36 @@ class TestJiraRefFromString:
 class TestNoteTriplet:
     def test_model_dump_matches_check_json_shape(self):
         triplet = NoteTriplet(
-            md=FileStatus(path="/p/foo.md", exists=True),
-            note=FileStatus(path="/p/foo___note.md", exists=False),
-            agent=FileStatus(path="/p/foo___agent.md", exists=True),
+            md=FileStatus(path="/p/foo.md", page="org/repo/pull/1", exists=True),
+            note=FileStatus(path="/p/foo___note.md", page="org/repo/pull/1/note", exists=False),
+            agent=FileStatus(path="/p/foo___agent.md", page="org/repo/pull/1/agent", exists=True),
         )
         dumped = triplet.model_dump()
         assert dumped == {
-            "md": {"path": "/p/foo.md", "exists": True},
-            "note": {"path": "/p/foo___note.md", "exists": False},
-            "agent": {"path": "/p/foo___agent.md", "exists": True},
+            "md": {"path": "/p/foo.md", "page": "org/repo/pull/1", "exists": True},
+            "note": {"path": "/p/foo___note.md", "page": "org/repo/pull/1/note", "exists": False},
+            "agent": {"path": "/p/foo___agent.md", "page": "org/repo/pull/1/agent", "exists": True},
         }
 
     def test_model_dump_json_is_valid(self):
         triplet = NoteTriplet(
-            md=FileStatus(path="/a.md", exists=False),
-            note=FileStatus(path="/a___note.md", exists=False),
-            agent=FileStatus(path="/a___agent.md", exists=False),
+            md=FileStatus(path="/a.md", page="org/repo/pull/1", exists=False),
+            note=FileStatus(path="/a___note.md", page="org/repo/pull/1/note", exists=False),
+            agent=FileStatus(path="/a___agent.md", page="org/repo/pull/1/agent", exists=False),
         )
         parsed = json.loads(triplet.model_dump_json())
         assert parsed["md"]["exists"] is False
 
     def test_format_table_contains_all_kinds(self):
         triplet = NoteTriplet(
-            md=FileStatus(path="/p/foo.md", exists=True),
-            note=FileStatus(path="/p/foo___note.md", exists=False),
-            agent=FileStatus(path="/p/foo___agent.md", exists=True),
+            md=FileStatus(path="/p/foo.md", page="org/repo/pull/1", exists=True),
+            note=FileStatus(path="/p/foo___note.md", page="org/repo/pull/1/note", exists=False),
+            agent=FileStatus(path="/p/foo___agent.md", page="org/repo/pull/1/agent", exists=True),
         )
         table = triplet.format_table()
         assert "Kind" in table
         assert "Exists" in table
+        assert "Page" in table
         assert "Path" in table
         assert "md" in table
         assert "note" in table
@@ -157,9 +158,9 @@ class TestNoteTriplet:
 
     def test_format_table_check_mark_for_exists(self):
         triplet = NoteTriplet(
-            md=FileStatus(path="/p/foo.md", exists=True),
-            note=FileStatus(path="/p/foo___note.md", exists=False),
-            agent=FileStatus(path="/p/foo___agent.md", exists=False),
+            md=FileStatus(path="/p/foo.md", page="org/repo/pull/1", exists=True),
+            note=FileStatus(path="/p/foo___note.md", page="org/repo/pull/1/note", exists=False),
+            agent=FileStatus(path="/p/foo___agent.md", page="org/repo/pull/1/agent", exists=False),
         )
         table = triplet.format_table()
         lines = table.strip().splitlines()
@@ -170,14 +171,15 @@ class TestNoteTriplet:
 
     def test_format_table_contains_paths(self):
         triplet = NoteTriplet(
-            md=FileStatus(path="/some/dir/file.md", exists=False),
-            note=FileStatus(path="/some/dir/file___note.md", exists=False),
-            agent=FileStatus(path="/some/dir/file___agent.md", exists=False),
+            md=FileStatus(path="/some/dir/file.md", page="org/repo/pull/1", exists=False),
+            note=FileStatus(path="/some/dir/file___note.md", page="org/repo/pull/1/note", exists=False),
+            agent=FileStatus(path="/some/dir/file___agent.md", page="org/repo/pull/1/agent", exists=False),
         )
         table = triplet.format_table()
         assert "/some/dir/file.md" in table
         assert "/some/dir/file___note.md" in table
         assert "/some/dir/file___agent.md" in table
+        assert "org/repo/pull/1" in table
 
 
 # ===================================================================
